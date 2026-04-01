@@ -1,33 +1,33 @@
-# Alive Blob - Design Spec
+# Alive Blob - 设计文档
 
-An abstract soft robot companion that breathes, responds to touch, and displays AIGC-generated facial expressions. Built for a 48-hour hackathon.
+一个会呼吸、能感知触摸、能用 AIGC 生成的人脸表情回应你的抽象软体机器人陪伴体。为 48 小时黑客松打造。
 
-## Project Goal
+## 项目目标
 
-Create a physical companion that feels alive — not a device, but a living blob. Users can upload anyone's face photo, generate emotion videos with AIGC tools, and the blob will display those expressions while its silicone body breathes and tentacles move in response to touch.
+做一个让人觉得「它是活的」的物理陪伴体。用户可以上传任何人的照片，用 AIGC 工具生成表情视频，Blob 会在屏幕上展示这些表情，同时硅胶身体呼吸起伏、触手随情绪摆动，摸它还会有反应。
 
-## Team
+## 团队
 
-- 3 people: 1 structural engineer (pneumatic silicone expert) + 2 software engineers
-- Physical demo required for hackathon judges
+- 3 人：1 名结构工程师（气动硅胶专家）+ 2 名软件工程师
+- 黑客松要求实物硬件展示，评委上手体验
 
-## System Architecture
+## 系统架构
 
 ```
-┌────────────────────────────────��────────────────────┐
+┌─────────────────────────────────────────────────────┐
 │                  Raspberry Pi 4B                    │
 │                                                      │
 │  ┌──────────┐  ┌──────────────┐  ┌───────────────┐  │
 │  │ Eye App  │  │  Blob Engine │  │  Web Server   │  │
-│  │ (Browser │  │  (Python)    │  │  (FastAPI)    │  │
-│  │  fullscr)│  │              │  │              │  │
-│  │  Video   │  │ - Emotion SM │  │ - REST API   │  │
-│  │  Player  │  │ - Breath Ctrl│  │ - WebSocket  │  │
-│  └────▲─────┘  │ - Touch Proc │  └──────▲───────┘  │
-│       │        │ - Pump Ctrl  │         │           │
-│   WebSocket    └──────┬───────┘    WiFi/LAN        │
+│  │ (浏览器   │  │  (Python)    │  │  (FastAPI)    │  │
+│  │  全屏)    │  │              │  │              │  │
+│  │  视频播放  │  │ - 情绪状态机  │  │ - REST API   │  │
+│  │          │  │ - 呼吸控制    │  │ - WebSocket  │  │
+│  └────▲─────┘  │ - 触摸处理    │  └──────▲───────┘  │
+│       │        │ - 气泵控制    │         │           │
+│   WebSocket    └──────┬───────┘    WiFi/局域网       │
 │       │               │               │             │
-│       └───────────��───┤               │             │
+│       └───────────────┤               │             │
 │                       │               │             │
 │              GPIO / I2C               │             │
 │                  │                    │             │
@@ -36,186 +36,182 @@ Create a physical companion that feels alive — not a device, but a living blob
         ┌──────────┼──────────┐         │
         │          │          │         │
    ┌────▼───┐ ┌───▼────┐ ┌───▼────┐   ┌▼──────────┐
-   │MPR121  │ │Solenoid│ │Air     │   │Mobile     │
-   │Touch   │ │Valves  │ │Pump    │   │Browser    │
-   │Sensor  │ │(x6)    │ │(12V)   │   │(Control)  │
+   │MPR121  │ │电磁阀   │ │气泵     │   │手机浏览器   │
+   │触摸传感器│ │(x6)    │ │(12V)   │   │(控制面板)   │
    └────────┘ └────────┘ └────────┘   └───────────┘
         │          │          │
    ┌────▼──────────▼──────────▼───────┐
-   │      Blob Silicone Body          │
-   │  Body    ← 1 channel: breathing  │
-   │  Tent-L  ← 2 channel: left      │
-   │  Tent-R  ← 3 channel: right     │
+   │        硅胶 Blob ���体             │
+   │  身体主体  ← 第1路：呼吸           │
+   │  左触手    ← 第2路：左侧运动       │
+   │  右触手    ← 第3路：右侧运动       │
    └───────────────────────────────────┘
 ```
 
-Three software modules:
+三个软件模块：
 
-1. **Eye App** — fullscreen Chromium on Pi renders AIGC emotion videos with touch overlay effects
-2. **Blob Engine** — Python core process managing emotion state machine, breathing rhythm, touch response, and pump control
-3. **Web Server** — FastAPI providing REST API + WebSocket for mobile control panel
+1. **Eye App** — Pi 上全屏 Chromium 播放 AIGC 情绪视频，叠加触摸反馈特效
+2. **Blob Engine** — Python 核心进程，管理情绪状态机、呼吸节奏、触摸响应、气泵控制
+3. **Web Server** — FastAPI 提供 REST API + WebSocket，供手机控制面板使用
 
-## Hardware
+## 硬件
 
-### Bill of Materials
+### 采购清单
 
-| Item | Qty | Est. Cost | Notes |
-|------|-----|-----------|-------|
-| Raspberry Pi 4B 2GB | 1 | 200-300 CNY | 4GB also works |
-| 3.5-5" HDMI LCD | 1 | 80-150 CNY | Square or round IPS preferred |
-| MPR121 capacitive touch module | 1 | 15-25 CNY | 12 channels |
-| 12V micro air pump | 1 | 20-40 CNY | Quiet model preferred |
-| 12V normally-closed solenoid valve | 3 | 15-25 CNY each | 6mm tubing, intake |
-| 12V normally-open solenoid valve | 3 | 15-25 CNY each | 6mm tubing, exhaust |
-| IRF520 MOSFET module | 7 | 3-5 CNY each | Or use 8-ch relay module |
-| 12V to 5V buck converter | 1 | 5-10 CNY | 3A+ for Pi |
-| 12V power adapter | 1 | 15-25 CNY | 3A+ |
-| 6mm silicone tubing | 2m | 5-10 CNY | |
-| Dupont wires + breadboard | misc | 15-20 CNY | |
-| **Total** | | **~500-800 CNY** | Silicone materials handled by structural engineer |
+| 物品 | 数量 | 参考价格 | 备注 |
+|------|------|---------|------|
+| Raspberry Pi 4B 2GB | 1 | ¥200-300 | 4GB 也行 |
+| 3.5-5 寸 HDMI 小屏 | 1 | ¥80-150 | 方形或圆形 IPS 屏优先 |
+| MPR121 电容触摸传感器模块 | 1 | ¥15-25 | 支持 12 路触摸 |
+| 12V 微型气泵 | 1 | ¥20-40 | 静音款优先 |
+| 12V 常闭电磁阀 | 3 | ¥15-25/个 | 6mm 气管接口，进气用 |
+| 12V 常开电磁阀 | 3 | ¥15-25/个 | 6mm 气管接口，排气用 |
+| IRF520 MOSFET 模块 | 7 | ¥3-5/个 | 或用 8 路继电器模块替代 |
+| 12V→5V 降压模块 | 1 | ¥5-10 | 3A 以上，给 Pi 供电 |
+| 12V 电源适配器 | 1 | ¥15-25 | 3A 以上 |
+| 6mm 硅胶气管 | 2m | ¥5-10 | |
+| 杜邦线 + 面包板 | 若干 | ¥15-20 | |
+| **合计** | | **约 ¥500-800** | 硅胶材料由结构工程师负责，不在此清单内 |
 
-### GPIO Pin Assignment
-
-```
-GPIO18 = Air pump on/off (HIGH = on)
-GPIO23 = Intake Valve 1 - Body (HIGH = open, NC)
-GPIO24 = Intake Valve 2 - Left tentacle (HIGH = open, NC)
-GPIO25 = Intake Valve 3 - Right tentacle (HIGH = open, NC)
-GPIO12 = Exhaust Valve 1 - Body (HIGH = close, NO)
-GPIO16 = Exhaust Valve 2 - Left tentacle (HIGH = close, NO)
-GPIO20 = Exhaust Valve 3 - Right tentacle (HIGH = close, NO)
-I2C SDA (GPIO2) = MPR121 touch sensor
-I2C SCL (GPIO3) = MPR121 touch sensor
-MPR121 I2C address = 0x5A
-```
-
-### Pneumatic Topology
+### GPIO 引脚分配
 
 ```
-                     ┌─→ Valve 1 (NC) → Body cavity ──→ Exhaust Valve 1 (NO) → vent
-Air pump → Main tube ┼─→ Valve 2 (NC) → Left tentacle → Exhaust Valve 2 (NO) → vent
-                     └─→ Valve 3 (NC) → Right tentacle → Exhaust Valve 3 (NO) → vent
-
-NC = normally-closed (default: air blocked, open to inflate)
-NO = normally-open  (default: air vents out, close to hold pressure)
+GPIO18 = 气泵开关 (HIGH = 开)
+GPIO23 = 进气阀1 - 身体 (HIGH = 开, 常闭)
+GPIO24 = 进气阀2 - 左触手 (HIGH = 开, 常闭)
+GPIO25 = 进气阀3 - 右触手 (HIGH = 开, 常闭)
+GPIO12 = 排气阀1 - 身体 (HIGH = 关, 常开)
+GPIO16 = 排气阀2 - 左触手 (HIGH = 关, 常开)
+GPIO20 = 排气阀3 - 右触手 (HIGH = 关, 常开)
+I2C SDA (GPIO2) = MPR121 触摸传感器
+I2C SCL (GPIO3) = MPR121 触摸传感器
+MPR121 I2C 地址 = 0x5A
 ```
 
-**Inflate cycle:** Open intake valve (NC→open) + close exhaust valve (NO→closed) + pump ON.
-**Deflate cycle:** Close intake valve (NC→closed) + open exhaust valve (NO→open) + pump OFF. Air escapes passively through the exhaust.
-**Hold:** Close both intake and exhaust valves.
+### 气路拓扑
 
-**Pump safety watchdog:**
-- Maximum continuous pump runtime: 10 seconds. Engine auto-kills pump after 10s and requires 2s cooldown.
-- Maximum valve-closed (hold pressure) duration: 30 seconds. After 30s, exhaust valve auto-opens to release pressure.
-- On Engine process exit or crash: all GPIO pins reset to LOW (all NC valves close, all NO valves open → safe deflation). Implemented via `atexit` handler and `signal` handler for SIGTERM/SIGINT.
+```
+                     ┌─→ 进气阀1 (常闭) → 身体气腔  ──→ 排气阀1 (常开) → 排气
+气泵 → 总气管        ┼─→ 进气阀2 (常闭) → 左触手气腔 ──→ 排气阀2 (常开) → 排气
+                     └─→ 进气阀3 (常闭) → 右触手气腔 ──→ 排气阀3 (常开) → 排气
 
-### Additional Hardware for Exhaust Path
+常闭 (NC) = 默认气路断开，通电打开进气
+常开 (NO) = 默认气路通畅（排气），通电关闭以保持气压
+```
 
-The exhaust/deflation path requires 3 additional normally-open solenoid valves (already included in BOM above).
+**充气**：打开进气阀 + 关闭排气阀 + 气泵开启
+**放气**：关闭进气阀 + 打开排气阀 + 气泵关闭，空气从排气阀自然排出
+**保持**：关闭进气阀 + 关闭排气阀，气腔内压力保持不变
 
-### Physical Form
+**气泵安全看门狗：**
+- 气泵最长连续运行时间：10 秒。超时自动切断，需冷却 2 秒才能再次启动。
+- 阀门最长保压时间：30 秒。超时后排气阀自动打开释压。
+- Engine 进程退出或崩溃时：所有 GPIO 重置为 LOW（常闭阀关闭、常开阀打开 → 安全放气）。通过 `atexit` 和 `signal` 处理器实现。
 
-The blob is an abstract creature — not a specific animal:
-- Central round body (houses the display screen)
-- 2 independently controlled tentacles (left + right) + optional passive tentacles (no pneumatics, just floppy silicone for aesthetics)
-- No defined front/back — it's a blob of living matter
-- Semi-translucent or fluorescent silicone for an alien aesthetic
-- Capacitive touch sensors embedded under the silicone surface
+### 物理形态
 
-## Emotion System
+Blob 是一个抽象不明生物体，不是具体的动物：
+- 中间一坨圆鼓鼓的主体（放屏幕的地方）
+- 2 根独立控制的触手（左+右），可选额外的被动触手（无气动，纯装饰用的软硅胶）
+- 没有固定的正面背面——它就是一坨有生命的东西
+- 半透明或荧光色硅胶，外星感
+- 电容触摸传感器贴在硅胶表面下方
 
-### 7 Emotions
+## 情绪系统
 
-The blob has 7 emotion states. Each emotion simultaneously affects three outputs: the face video, breathing rhythm, and tentacle movement. The design tone is exaggerated and comedic — the blob is a drama queen.
+### 7 种情绪
 
-| Emotion | Eye/Face (AIGC Video) | Breathing | Tentacles |
-|---------|----------------------|-----------|-----------|
-| **Calm** | Relaxed face, slow blinks, gentle nodding | Slow & deep (4s in + 4s out) | Gentle sway |
-| **Happy** | Huge grin, exaggerated laughing, eyebrows up | Quick & light (2s cycle) | Slap the ground like clapping |
-| **Curious** | Head tilt, raised eyebrow, eyes darting around | Slightly faster, irregular | One tentacle reaches toward touch point |
-| **Sleepy** | Yawning, drooping eyes, head slowly tilting down | Very slow & deep (6s cycle) | All droop limp like noodles |
-| **Excited** | Jaw drop, eyes wide, head shaking rapidly | Rapid shallow breathing | All tentacles spring up then fall |
-| **Shy** | Head down, blushing, peeking up timidly | Slightly faster | Tentacles curl inward (covering face) |
-| **Grumpy** | Crying, furrowed brows, pouting mouth | Short huffs | Tentacles cross (arms crossed) or shake stiffly |
+Blob 有 7 种情绪状态，每种情绪同时影响三个输出：屏幕表情视频、呼吸节奏、触手动作。设计基调是夸张搞怪——Blob 是一个戏精。
 
-### State Machine
+| 情绪 | 屏幕表情（AIGC 视频） | 呼吸节奏 | 触手动作 |
+|------|---------------------|---------|---------|
+| **Calm** 平静 | 放松的脸，慢慢眨眼，微微点头 | 慢而深（4秒吸 + 4秒呼） | 微微轻摆 |
+| **Happy** 开心 | 大笑，夸张咧嘴，眉毛上扬 | 轻快短促（2秒周期） | 疯狂拍地板，像在鼓掌 |
+| **Curious** 好奇 | 歪头，挑眉，眼睛左右看 | 略加速，不规则 | 一根触手探向触摸方向 |
+| **Sleepy** 困倦 | 打哈欠，眼睛下垂，头慢慢歪下去 | 极慢极深（6秒周期） | 全部下垂瘫软，像面条 |
+| **Excited** 兴奋 | 张大嘴，瞪大眼，头快速左右转 | 快速浅呼吸 | 所有触手同时弹起再落下 |
+| **Shy** 害羞 | 低头，脸红，偷偷抬眼看 | 轻微加速 | 触手向内蜷缩（捂脸） |
+| **Grumpy** 不爽 | 被打哭了，委屈皱眉，嘴角下撇 | 短促喷气 | 触手交叉抱胸或僵硬抖动 |
+
+### 状态机
 
 ```
                     ┌──────────────┐
-          timeout   │              │ any touch
-        ┌──────────►│    Sleepy    ├──────────┐
-        │  (>60s)   │              │          │
-        │           └──────────────┘          ▼
-        │                                ┌─────────┐
-   ┌────┴─────┐                          │  Calm   │◄── initial state
-   │          │◄─────────────────────────│         │
-   │  Calm    │     gentle tap           └────┬────┘
-   │          │──── gentle tap ──► Happy       │
-   └────┬─────┘                               │
-        │         rapid repeated taps          │
-        ├─────────────────────►  Excited       │
-        │                                      │
-        │         new touch location           │
-        ├─────────────────────►  Curious       │
-        │                                      │
-        │         sustained press (>2s)        │
-        ├─────────────────────►  Shy           │
-        │                                      │
-        │         slap (high freq + large area)│
-        └─────────────────────►  Grumpy        │
-                                               │
-         all non-Calm emotions ── decay ──────►┘
-                              (10-30s timeout)
+       超时无交互    │              │ 任意触摸
+       (>60秒)     │   Sleepy     ├──────────┐
+        ┌─────────►│              │          │
+        │          └──────────────┘          ▼
+        │                               ┌─────────┐
+   ┌────┴─────┐                         │  Calm   │◄── 初始状态
+   │          │◄────────────────────────│         │
+   │  Calm    │                         └────┬────┘
+   │          │──── 轻触 ────────► Happy      │
+   └────┬─────┘                              │
+        │         连续快速拍击                  │
+        ├────────────────────► Excited        │
+        │                                     │
+        │         触摸新位置                    │
+        ├────────────────────► Curious        │
+        │                                     │
+        │         持续按压同一点 (>2秒)          │
+        ├────────────────────► Shy            │
+        │                                     │
+        │         拍打 (多点同时+高频)           │
+        └────────────────────► Grumpy         │
+                                              │
+        所有非 Calm 情绪 ── 自然衰减 ──────────►┘
+                           (10-30秒无交互)
 ```
 
-Key design decisions:
-- **Natural decay**: All emotions gradually return to Calm after 10-30 seconds of no interaction
-- **Touch pattern recognition**: Engine analyzes touch frequency, duration, and area to classify gestures
-- **Smooth transitions**: Emotion changes crossfade over 0.8-1.2 seconds (both video and tentacle position)
-- **Mobile override**: The mobile control panel can force any emotion, overriding the automatic state machine
+关键设计决策：
+- **自然衰减**：所有情绪在 10-30 秒无交互后渐变回 Calm，不会卡在某个情绪
+- **触摸模式识别**：Engine 分析触摸频率、持续时间、触发通道数来判断手势类型
+- **平滑过渡**：情绪切换有 0.8-1.2 秒的渐变过渡（视频交叉淡入淡出 + 触手缓慢改变姿态）
+- **手机覆盖**：手机控制面板可以强制切换到任意情绪，覆盖自动状态机
 
-### Touch Pattern Recognition
+### 触摸模式识别
 
-The MPR121 provides 12 discrete touch channels (0-11), not continuous XY coordinates. Channels are mapped to physical zones on the blob:
+MPR121 提供 12 个离散触摸通道（0-11），不是连续的 XY 坐标。通道按物理区域映射到 Blob 身上：
 
 ```
-MPR121 Channel Mapping:
-  Channels 0-3:  Body top (around screen)
-  Channels 4-5:  Body sides
-  Channels 6-8:  Left tentacle (base → tip)
-  Channels 9-11: Right tentacle (base → tip)
+MPR121 通道映射：
+  通道 0-3:  身体顶部（屏幕周围）
+  通道 4-5:  身体两侧
+  通道 6-8:  左触手（根部 → 末端）
+  通道 9-11: 右触手（根部 → 末端）
 ```
 
-Person A places sensors according to this zone map. Person B reads channel numbers and classifies by zone.
+人员 A 按此区域图放置传感器，人员 B 读取通道号并按区域分类。
 
-| Pattern | Detection Rule | Triggers |
-|---------|---------------|----------|
-| Gentle tap | Single channel, < 500ms | Happy |
-| Sustained press | Same channel held > 2s | Shy |
-| Rapid taps | 3+ activations within 1s on any channels | Excited |
-| Slap | 3+ channels activate simultaneously | Grumpy |
-| New zone | Channel in different zone from last touch | Curious |
-| No touch | > 60s silence | Sleepy |
+| 模式 | 检测规则 | 触发情绪 |
+|------|---------|---------|
+| 轻触 | 单通道触发，< 500ms | Happy |
+| 持续按压 | 同一通道保持 > 2 秒 | Shy |
+| 连续拍击 | 1 秒内 3 次以上触发 | Excited |
+| 拍打 | 3 个以上通道同时触发 | Grumpy |
+| 新区域触摸 | 触发通道与上次不在同一区域 | Curious |
+| 无触摸 | 超过 60 秒无任何触摸 | Sleepy |
 
-## AIGC Face System
+## AIGC 人脸系统
 
-### Overview
+### 概述
 
-Instead of abstract eye animations, the blob displays AI-generated facial expression videos. Users generate emotion videos externally using any AIGC tool (Kling, Runway, ComfyUI, CapCut, etc.) and upload them as "character packs."
+Blob 的屏幕不显示抽象眼睛，而是播放 AIGC 生成的人脸表情视频。用户用任意 AIGC 工具（可灵、Runway、ComfyUI、剪映等）在外部生成表情视频，打包上传为「角色包」。
 
-### Video Specifications
+### 视频规格
 
-- Resolution: 480x480 or 720x720 (match screen)
-- Duration: 3-5 seconds, seamless loop
-- Format: MP4 (H.264), Pi hardware-decodes natively
-- Per character: 7 videos (one per emotion), ~20-40MB total
-- Multiple character packs supported (e.g., "Trump pack", "Musk pack", "My Boss pack")
+- 分辨率：480x480 或 720x720（匹配屏幕）
+- 时长：3-5 秒，可无缝循环
+- 格式：MP4 (H.264)，Pi 硬件解码无压力
+- 每个角色 7 个视频（每种情绪一个），总共约 20-40MB
+- 支持多个角色包（川普包、马斯克包、老板包...），手机端切换
 
-### Character Pack Structure
+### 角色包目录结构
 
 ```
 characters/
 ├── trump/
+│   ├── manifest.json
 │   ├── calm.mp4
 │   ├── happy.mp4
 │   ├── excited.mp4
@@ -229,113 +225,111 @@ characters/
     └── ...
 ```
 
-### AIGC Video Generation Guide (for content creators)
+### AIGC 视频生成指引（给内容制作者）
 
-For each emotion, generate a 3-5 second looping video from the target face photo:
+用目标人物照片生成每种情绪的 3-5 秒循环短视频：
 
-| Emotion | Prompt Direction |
-|---------|-----------------|
-| Calm | Relaxed expression, slow blinks, gentle nodding |
-| Happy | Big laugh, exaggerated grin, bouncing eyebrows |
-| Excited | Jaw drop, eyes popping wide, head shaking wildly |
-| Curious | Head tilting, one eyebrow raised, eyes darting |
-| Sleepy | Big yawn, drooping eyes, head slowly falling |
-| Shy | Looking down, blushing, peeking up shyly |
-| Grumpy | Crying face, furrowed brows, pouting lips |
+| 情绪 | 生成方向 |
+|------|---------|
+| Calm | 表情放松，缓慢眨眼，微微点头 |
+| Happy | 大笑，夸张咧嘴笑，眉毛弹跳 |
+| Excited | 张大嘴，瞪圆眼，头疯狂摇晃 |
+| Curious | 歪头，挑眉，眼睛东张西望 |
+| Sleepy | 大哈欠，眼皮下垂，头慢慢歪下去 |
+| Shy | 低头，脸红，偷偷抬眼看 |
+| Grumpy | 哭脸，皱眉，嘴角下撇 |
 
-## Software Modules
+## 软件模块
 
-### 1. Blob Engine (Python — the brain)
+### 1. Blob Engine（Python — 大脑）
 
-Core process running on the Pi, coordinating all modules.
+运行在 Pi 上的核心进程，协调所有模块。
 
 ```
 blob-engine/
-├── engine.py          # Main loop, module coordination
-├── emotion_sm.py      # Emotion state machine
-├── touch_handler.py   # Touch pattern recognition
-├── pump_controller.py # GPIO pump + valve PWM control
-├── config.py          # All tunable parameters
+├── engine.py          # 主循环，模块协调
+├── emotion_sm.py      # 情绪状态机
+├── touch_handler.py   # 触摸模式识别
+├── pump_controller.py # GPIO 气泵 + 电磁阀控制
+├── config.py          # 所有可调参数
 └── requirements.txt
 ```
 
-**Main loop (~50ms per tick):**
+**主循环（约 50ms 一轮）：**
 ```
-Read touch → Classify gesture → State machine decision → Update emotion →
-  ├→ Pump commands (GPIO)
-  ├→ Face video switch (WebSocket → Eye App)
-  └→ State sync (WebSocket → Mobile)
+读取触摸 → 判断手势类型 → 状态机决策 → 更新情绪 →
+  ├→ 气泵指令（GPIO）
+  ├→ 切换表情视频（WebSocket → Eye App）
+  └→ 状态同步（WebSocket → 手机）
 ```
 
-### 2. Eye App (Frontend — the face)
+### 2. Eye App（前端 — 脸）
 
-Fullscreen Chromium page on the Pi display, video-based.
+Pi 上全屏 Chromium 打开的网页，基于视频播放。
 
 ```
 eye-app/
 ├── index.html
 ├── style.css
-├── player.js          # Dual-layer video switch engine
-├── overlay.js         # Canvas touch feedback layer
-├── transitions.js     # Crossfade between emotion videos
-└── ws.js              # WebSocket client
+├── player.js          # 双层视频切换引擎
+├── overlay.js         # Canvas 触摸即时反馈层
+├── transitions.js     # 情绪视频交叉淡入淡出
+└── ws.js              # WebSocket 客户端
 ```
 
-**Video playback design:**
-- Two `<video>` elements stacked (Layer A / Layer B)
-- Current emotion video loops on Layer A
-- On emotion change: Layer B loads new video → crossfade (0.8s) → swap roles
-- Videos set to `loop` + `muted`, fullscreen fill
-- Background color shifts with emotion (e.g., red glow for Grumpy)
+**视频播放设计：**
+- 两个 `<video>` 元素叠在一起（A 层 / B 层）
+- 当前情绪视频在 A 层循环播放
+- 情绪切换时：B 层加载新视频 → 交叉淡入淡出（0.8秒）→ A/B 角色互换
+- 视频设置 `loop` + `muted`，全屏铺满
+- 屏幕背景色跟随情绪变化（比如 Grumpy 时边缘泛红光）
 
-**Touch feedback overlay (Canvas layer on top of video):**
-- Tap → ripple / heart particle at touch position
-- Slap → CSS shake effect on entire screen
-- Sustained press → expanding ripple from press point
-- Provides instant "it felt that" feedback without waiting for video switch
+**触摸即时反馈叠加层（Canvas 覆盖在视频上方）：**
+- 轻触 → 触摸位置冒出波纹/心形粒子
+- 拍打 → 整个屏幕抖动效果（CSS shake）
+- 持续按压 → 按压区域出现涟漪扩散
+- 作用：每次触摸都有「它感受到了」的即时感，不用等视频切换
 
-### 3. Web Server (FastAPI — communication hub)
+### 3. Web Server（FastAPI — 通信枢纽）
 
 ```
 server/
-├── main.py            # FastAPI application entry
-├── routes.py          # REST API routes (upload, character management)
-├── ws_manager.py      # WebSocket connection management
-└── static/            # Mobile control panel frontend
+├── main.py            # FastAPI 应用入口
+├── routes.py          # REST API 路由（上传、角色管理）
+├── ws_manager.py      # WebSocket 连接管理
+└── static/            # 手机控制面板前端文件
     ├── index.html
     ├── app.js
     └── style.css
 ```
 
-## Communication Protocol
+## 通信协议
 
-All communication uses WebSocket with JSON messages. Every message has a `type` field for routing.
+所有实时通信使用 WebSocket + JSON 消息，每条消息都有 `type` 字段做路由。
 
-### WebSocket Architecture
+### WebSocket 架构
 
 ```
                   ┌───────── ws://localhost:8000/ws/eye ──────────┐
                   │                                                │
              ┌────▼─────┐                                   ┌─────┴──────┐
              │ Eye App  │                                   │   Blob     │
-             │ (browser)│                                   │  Engine    │
+             │ (浏览器)  │                                   │  Engine    │
              └──────────┘                                   │  (Python)  │
                                                             └─────┬──────┘
              ┌──────────┐                                         │
-             │ Mobile   │── ws://192.168.x.x:8000/ws/mobile ─────┘
-             │ (phone)  │
+             │ 手机      │── ws://192.168.x.x:8000/ws/mobile ─────┘
+             │ (浏览器)  │
              └──────────┘
 ```
 
-The **Blob Engine runs its own WebSocket server** (via `websockets` library) on port 8000 with two endpoints:
-- `/ws/eye` — Eye App connects here. Only one connection expected.
-- `/ws/mobile` — Mobile clients connect here. Multiple connections allowed (all receive same state_sync).
+**Blob Engine 自己运行 WebSocket 服务器**（用 `websockets` 库），端口 8000，两个端点：
+- `/ws/eye` — Eye App 连接到这里，只允许一个连接
+- `/ws/mobile` — 手机客户端连接到这里，允许多个连接（都收到相同的状态同步消息）
 
-The **FastAPI server** runs on port 8080 and handles REST API only (file uploads, character CRUD, health check). It does NOT proxy WebSocket traffic — the Engine handles WebSocket directly to minimize latency for touch feedback.
+**FastAPI 服务器** 运行在端口 8080，只处理 REST API（文件上传、角色管理、健康检查）。不代理 WebSocket 流量——Engine 直接处理 WebSocket 以减少触摸反馈延迟。
 
-Mobile clients connect to the Engine's WebSocket for real-time control, and to the FastAPI server for REST operations (file upload, character listing).
-
-### Engine → Eye App (video control)
+### Engine → Eye App（视频控制）
 
 ```json
 {
@@ -356,13 +350,13 @@ Mobile clients connect to the Engine's WebSocket for real-time control, and to t
 }
 ```
 
-The Eye App maps zones to screen regions for overlay effects:
-- `body_top` → center of screen
-- `body_sides` → left/right edge
-- `left_tentacle` → bottom-left
-- `right_tentacle` → bottom-right
+Eye App 将区域映射到屏幕位置做叠加特效：
+- `body_top` → 屏幕中心
+- `body_sides` → 屏幕左右边缘
+- `left_tentacle` → 屏幕左下
+- `right_tentacle` → 屏幕右下
 
-### Engine → Mobile (state sync, every 500ms)
+### Engine → 手机（状态同步，每 500ms 推送）
 
 ```json
 {
@@ -376,13 +370,13 @@ The Eye App maps zones to screen regions for overlay effects:
 }
 ```
 
-**Field definitions:**
-- `intensity` (0.0 - 1.0): Global performance intensity. Scales three things simultaneously: (1) pump duty cycle / inflation depth, (2) breathing amplitude, (3) tentacle movement range. At 0.0 the blob barely moves; at 1.0 it's maximum drama. Default: 0.7.
-- `tentacles` array: Current inflation ratio per channel. Index 0 = left tentacle, index 1 = right tentacle. 0.0 = fully deflated, 1.0 = maximum inflation. Read-only for mobile display.
-- `breathing_bpm`: Current breaths per minute.
-- `touch_active`: Whether any touch channel is currently activated.
+**字段说明：**
+- `intensity`（0.0 - 1.0）：全局表演强度。同时缩放三样东西：(1) 气泵占空比/充气深度，(2) 呼吸幅度，(3) 触手运动范围。0.0 几乎不动，1.0 最大戏精模式。默认 0.7。
+- `tentacles` 数组：每根触手当前充气比例。索引 0 = 左触手，索引 1 = 右触手。0.0 = 完全放气，1.0 = 最大充气。手机端只读显示用。
+- `breathing_bpm`：当前每分钟呼吸次数。
+- `touch_active`：是否有触摸通道正在被激活。
 
-### Mobile → Engine (user commands)
+### 手机 → Engine（用户控制指令）
 
 ```json
 { "type": "set_emotion", "emotion": "happy" }
@@ -392,106 +386,104 @@ The Eye App maps zones to screen regions for overlay effects:
 { "type": "list_characters" }
 ```
 
-### Mobile → Server (file upload via REST)
+### 手机 → Server（文件上传，REST API）
 
 ```
-POST   /api/characters                       # Create new character pack (body: { name })
-GET    /api/characters                       # List all packs with completeness status
-GET    /api/characters/{name}                # Get one pack's detail (which emotions have videos)
-DELETE /api/characters/{name}                # Delete a pack
-POST   /api/characters/{name}/videos         # Upload video (multipart: emotion=happy, file=happy.mp4)
-GET    /api/characters/{name}/videos/{emotion} # Stream a video file (for preview thumbnail)
-GET    /api/status                           # System health: engine running, screen connected, touch active
+POST   /api/characters                          # 创建新角色包（body: { name }）
+GET    /api/characters                          # 列出所有角色包及完成状态
+GET    /api/characters/{name}                   # 获取某个角色包详情（哪些情绪已有视频）
+DELETE /api/characters/{name}                   # 删除角色包
+POST   /api/characters/{name}/videos            # 上传视频（multipart: emotion=happy, file=happy.mp4）
+GET    /api/characters/{name}/videos/{emotion}  # 获取视频文件（用于预览缩略图）
+GET    /api/status                              # 系统健康状态：Engine 运行中、屏幕已连接、触摸活跃
 ```
 
-## Mobile Control Panel
+## 手机控制面板
 
-Four-tab SPA served by FastAPI, accessed via same-LAN mobile browser.
+FastAPI 托管的单页应用，同局域网手机浏览器访问。四个标签页：
 
-### Tab 1: Home (Status Overview)
+### 标签1：Home（状态总览）
 
-- Current character name and face preview thumbnail
-- Current emotion with icon
-- Intensity bar (0-1)
-- Breathing BPM
-- Tentacle inflation levels (per-channel bar)
-- Touch activity indicator
+- 当前角色名称和表情预览缩略图
+- 当前情绪图标
+- 表演强度进度条 (0-1)
+- 呼吸 BPM
+- 触手充气状态（每通道一个进度条）
+- 触摸活动指示器
 
-### Tab 2: Emotion (Core Interaction)
+### 标签2：Emotion（情绪控制，核心交互）
 
-- 7 emotion buttons in a grid, tap to force-switch
-- Intensity slider (quiet ↔ dramatic), affects animation amplitude + tentacle range + breathing depth
-- Breathing speed slider (BPM)
-- Auto/Manual toggle: auto = touch-driven state machine, manual = phone overrides
+- 7 个情绪按钮网格，点击强制切换
+- 表演强度滑块（安静 ↔ 疯狂），同时影响动画幅度 + 触手范围 + 呼吸深度
+- 呼吸速度滑块（BPM）
+- 自动/手动开关：自动 = 触摸驱动状态机，手动 = 手机覆盖控制
 
-### Tab 3: Upload (Character Management)
+### 标签3：Upload（角色管理）
 
-- List of installed character packs with status (X/7 videos ready)
-- Active character indicator, tap to switch
-- "New character" flow: name → upload 7 emotion videos one by one
-- Delete character pack
+- 已安装角色包列表，显示完成状态（X/7 视频已就绪）
+- 当前使用中的角色标识，点击切换
+- 新建角色流程：起名 → 逐个上传 7 种情绪视频
+- 删除角色包
 
-### Tab 4: Settings
+### 标签4：Settings（系统设置）
 
-- WiFi connection status
-- Screen brightness
-- Touch sensitivity adjustment
-- Pump force ceiling (safety limit)
-- System restart
+- WiFi 连接状态
+- 屏幕亮度
+- 触摸灵敏度调节
+- 气泵力度上限（安全阈值）
+- 系统重启
 
-## Startup, Shutdown, and Error Handling
+## 启动、关闭与异常处理
 
-### Startup Sequence
+### 启动顺序
 
-`scripts/start.sh` launches all processes in order via a simple shell script (no systemd needed for hackathon):
+`scripts/start.sh` 按顺序启动所有进程（黑客松不需要 systemd）：
 
-1. **FastAPI server** starts first (port 8080) — serves mobile panel static files and REST API.
-2. **Blob Engine** starts second (port 8000) — opens WebSocket server, initializes GPIO, starts main loop.
-3. **Eye App** starts last — `chromium-browser --kiosk --disable-infobars --enable-features=VaapiVideoDecoder http://localhost:8000/ws/eye` (fullscreen mode, hardware video decode enabled).
+1. **FastAPI 服务器** 先启动（端口 8080）— 提供手机面板静态文件和 REST API
+2. **Blob Engine** 其次启动（端口 8000）— 打开 WebSocket 服务，初始化 GPIO，开始主循环
+3. **Eye App** 最后启动 — `chromium-browser --kiosk --disable-infobars --enable-features=VaapiVideoDecoder http://localhost:8080/eye`（全屏模式，硬件视频解码）
 
-Health check: `start.sh` waits for each process to bind its port before starting the next one. If any process fails to start within 10 seconds, the script prints an error and exits.
+健康检查：`start.sh` 等每个进程绑定端口后才启动下一个。任何进程在 10 秒内启动失败则打印错误并退出。
 
-### Shutdown Sequence
+### 关闭顺序
 
-`scripts/stop.sh` or Ctrl+C on `start.sh`:
+`scripts/stop.sh` 或在 `start.sh` 上按 Ctrl+C：
 
-1. Send SIGTERM to Blob Engine → `atexit` handler sets all GPIO LOW (safe deflation) → process exits.
-2. Send SIGTERM to FastAPI server → process exits.
-3. Kill Chromium process.
+1. 发送 SIGTERM 给 Blob Engine → `atexit` 处理器将所有 GPIO 设为 LOW（安全放气）→ 进程退出
+2. 发送 SIGTERM 给 FastAPI 服务器 → 进程退出
+3. 终止 Chromium 进程
 
-**Critical: GPIO cleanup on crash.** The Engine registers both `atexit` and `signal.signal(SIGTERM/SIGINT)` handlers that call `GPIO.cleanup()`. This ensures all NC valves close and all NO valves open (= safe deflation) even on unexpected termination.
+**关键：崩溃时的 GPIO 清理。** Engine 同时注册 `atexit` 和 `signal.signal(SIGTERM/SIGINT)` 处理器调用 `GPIO.cleanup()`。确保即使意外终止，所有常闭阀关闭、常开阀打开（= 安全放气）。
 
-### Error Handling and Fallbacks
+### 异常处理与降级
 
-| Failure | Behavior |
-|---------|----------|
-| Eye App WebSocket disconnects | Engine continues running. Eye App auto-reconnects every 2 seconds. Face freezes on last frame during disconnect. |
-| Mobile WebSocket disconnects | Engine continues in auto mode (touch-driven). Mobile panel shows "Reconnecting..." and auto-retries. |
-| MPR121 touch sensor not detected on I2C | Engine starts in "no-touch" mode. Logs warning. Mobile-only control works. Emotion stays on Calm unless mobile overrides. |
-| Incomplete character pack (< 7 videos) | System allows switching to it. Missing emotions fall back to a static placeholder image (a "?" face). Mobile shows which emotions are missing. |
-| Pump runs > 10s continuously | Watchdog auto-kills pump. 2s cooldown before next activation. |
-| Valve held closed > 30s | Exhaust valve auto-opens to release pressure. |
-| Engine process crashes | GPIO cleanup handler fires. start.sh can be re-run manually. |
+| 故障情况 | 系统行为 |
+|---------|---------|
+| Eye App WebSocket 断开 | Engine 继续运行。Eye App 每 2 秒自动重连。断开期间画面冻结在最后一帧。 |
+| 手机 WebSocket 断开 | Engine 切回自动模式（触摸驱动）。手机显示「重新连接中...」并自动重试。 |
+| MPR121 触摸传感器未检测到 | Engine 进入「无触摸」模式。记录警告日志。仅手机控制可用。情绪保持 Calm 除非手机覆盖。 |
+| 角色包不完整（不足 7 个视频） | 允许切换到该角色。缺失的情绪显示静态占位图（一个「?」脸）。手机显示哪些情绪缺失。 |
+| 气泵连续运行超过 10 秒 | 看门狗自动切断气泵。冷却 2 秒后才可再次启动。 |
+| 阀门保压超过 30 秒 | 排气阀自动打开释放气压。 |
+| Engine 进程崩溃 | GPIO 清理处理器触发（安全放气）。手动重新运行 `start.sh` 即可。 |
 
-### Demo Mode
+### Demo 模式
 
-For situations where hardware partially fails during the demo:
+应对硬件在演示现场部分失灵的情况。通过手机 Settings 标签页或启动 Engine 时加 `--demo` 参数激活。
 
-Activated via mobile Settings tab or by starting Engine with `--demo` flag.
+- **触摸传感器坏了？** → 手机面板成为唯一输入，情绪按钮正常使用
+- **气动系统坏了？** → 屏幕表情视频照常切换，体验降级为「互动表情显示器」
+- **屏幕坏了？** → 触手仍然响应触摸，体验降级为「触摸响应软体雕塑」
 
-- **No touch sensor?** → Mobile panel becomes the sole input. Emotion buttons work as normal.
-- **No pneumatics?** → Face videos still switch on the screen. The experience degrades gracefully to "interactive face display."
-- **No screen?** → Tentacles still respond to touch. The experience degrades to "touch-responsive soft sculpture."
+核心循环（触摸 → 情绪 → 输出）设计为每个输出通道（屏幕、身体、手机）独立运行。任何组合出故障都不会导致 Engine 崩溃。
 
-The core loop (touch → emotion → outputs) is designed so each output channel (face, body, mobile) operates independently. Any combination can fail without crashing the Engine.
+## 角色包格式
 
-## Character Pack Format
-
-Each character pack is a directory under `characters/` with a `manifest.json`:
+每个角色包是 `characters/` 下的一个目录，包含 `manifest.json`：
 
 ```json
 {
-  "name": "Trump",
+  "name": "川普",
   "created_at": "2026-04-01T12:00:00Z",
   "videos": {
     "calm": "calm.mp4",
@@ -505,9 +497,9 @@ Each character pack is a directory under `characters/` with a `manifest.json`:
 }
 ```
 
-`manifest.json` is auto-generated by the server when videos are uploaded. The `videos` map only includes emotions that have been uploaded — missing keys indicate incomplete pack. The mobile Upload tab reads this to show completion status.
+`manifest.json` 在上传视频时由服务器自动生成。`videos` 字典只包含已上传的情绪——缺失的 key 表示该情绪视频尚未上传。手机 Upload 标签页读取此文件显示完成状态。
 
-## Project File Structure
+## 项目文件结构
 
 ```
 alive-blob/
@@ -538,6 +530,7 @@ alive-blob/
 │
 ├── characters/
 │   └── trump/
+│       ├── manifest.json
 │       ├── calm.mp4
 │       ├── happy.mp4
 │       ├── excited.mp4
@@ -559,88 +552,84 @@ alive-blob/
 └── README.md
 ```
 
-## Team Division (3 People, End-to-End Ownership)
+## 团队分工（3 人，端到端负责）
 
-### Person A — "The Body" (Structural Engineer)
+### 人员 A —「身体」（结构工程师）
 
-Owns everything physical:
-- Silicone mold design and casting
-- Air pump + solenoid valve assembly
-- Tubing and pneumatic topology
-- Touch sensor placement under silicone
-- All GPIO wiring to Raspberry Pi
-- Physical assembly of the complete blob
+端到端负责所有物理部分：
+- 硅胶模具设计与浇注
+- 气泵 + 电磁阀组装
+- 气管和气路拓扑搭建
+- 触摸传感器在硅胶下方的布置
+- 所有 GPIO 接线到 Raspberry Pi
+- 整体物理组装
 
-**Deliverable:** A physical body that can inflate/deflate each channel independently and sense touch.
+**交付物：** 一个能独立充放气每个通道、能感知触摸的物理身体。
 
-### Person B — "The Brain + Face" (Software)
+### 人员 B —「大脑 + 脸」（软件）
 
-Owns the core experience loop:
-- Blob Engine: emotion state machine, touch pattern recognition, pump GPIO control
-- Eye App: video player, crossfade transitions, touch overlay effects
-- Complete pipeline: touch input → emotion decision → video playback + GPIO output
+端到端负责核心体验闭环：
+- Blob Engine：情绪状态机、触摸模式识别、GPIO 气泵控制
+- Eye App：视频播放器、交叉淡入淡出、触摸叠加动效
+- 完整链路：触摸输入 → 情绪决策 → 视频切换 + GPIO 输出
 
-**Deliverable:** Touch it → face changes → tentacles move. The complete experience loop.
+**交付物：** 摸它 → 脸变 → 触手动。完整的体验闭环。
 
-### Person C — "The Phone + Infrastructure" (Software)
+### 人员 C —「手机 + 基建」（软件）
 
-Owns remote control and system infrastructure:
-- FastAPI server + WebSocket manager
-- Mobile control panel (all 4 tabs)
-- File upload and character pack management
-- Pi system setup, networking, auto-start scripts
+端到端负责远程控制和系统基础设施：
+- FastAPI 服务器 + WebSocket 管理
+- 手机控制面板（全部 4 个标签页）
+- 文件上传和角色包管理
+- Pi 系统配置、网络、开机自启脚本
 
-**Deliverable:** Open phone browser → control everything + upload character videos.
+**交付物：** 手机打开浏览器 → 能控制一切 + 上传视频。
 
-**Side task for Person C (hours 0-8):** Generate the first character pack (7 AIGC emotion videos) using any tool while setting up the Pi environment. This ensures there is demo content ready before integration begins.
+**人员 C 附加任务（第 0-8 小时）：** 在搭建 Pi 环境的同时，用任意 AIGC 工具生成第一个角色包（7 个情绪视频），确保联调前有可用的演示内容。
 
-### Integration Interfaces
+### 联调接口
 
-Only two interfaces need to be agreed upon before independent development:
+开工前只需对齐两个接口，之后各自独立开发：
 
-**Interface 1: A ↔ B (GPIO hardware protocol)**
+**接口 1：A ↔ B（GPIO 硬件协议）**
 ```
-GPIO18 = pump, GPIO23-25 = intake valves (NC), GPIO12/16/20 = exhaust valves (NO)
-I2C = MPR121 touch (0x5A), channels 0-5 = body, 6-8 = left tentacle, 9-11 = right tentacle
+GPIO18 = 气泵, GPIO23-25 = 进气阀 (常闭), GPIO12/16/20 = 排气阀 (常开)
+I2C = MPR121 触摸 (0x5A), 通道 0-5 = 身体, 6-8 = 左触手, 9-11 = 右触手
 ```
 
-**Interface 2: B ↔ C (WebSocket message protocol)**
-As defined in the Communication Protocol section above.
+**接口 2：B ↔ C（WebSocket 消息协议）**
+如上方「通信协议」章节所定义。
 
-### 48h Timeline
+### 48 小时时间线
 
 ```
        0h        8h        16h       24h       32h       40h       48h
         │─────────│─────────│─────────│─────────│─────────│─────────│
 
-A Body  │ Mold +  │ Curing  │ Pneum.  │ Sensor+ │ Integ.  │  Demo  │
-        │ casting │ (help   │ assembly│ wiring  │ tuning  │  prep  │
-        │ design  │  B/C)   │ pump+   │ final   │         │        │
-        │         │         │ valves  │ assembly│         │        │
+A 身体  │ 模具设计  │ 固化等待  │ 气路组装  │ 传感器接线 │  联调     │ Demo │
+        │ 浇注     │(可帮B/C) │ 泵+阀安装 │ 整体组装   │  微调     │ 准备  │
 
-B Brain │ Engine  │ Eye App │ GPIO    │ ← Integration → │  Demo  │
-  +Face │ state   │ video   │ control │ end-to-end test  │  prep  │
-        │ machine │ player  │ touch   │ polish + bugfix  │        │
-        │ mock    │ effects │ hw link │                  │        │
+B 大脑  │ Engine   │ Eye App  │ GPIO控制  │  ← 联调 →  │  打磨     │ Demo │
+  +脸   │ 状态机   │ 视频播放器 │ 触摸处理  │  端到端测试  │  修bug   │ 准备  │
+        │ 模拟测试  │ 过渡动效   │ 对接硬件  │            │         │      │
 
-C Phone │ FastAPI │ Control │ Upload  │ ← Integration → │  Demo  │
-  +Infra│ WSocket │ panel   │ char    │ Pi deploy        │  prep  │
-        │ Pi env  │ emotion │ mgmt    │ auto-start       │        │
-        │ setup   │ sliders │ settings│                  │        │
+C 手机  │ FastAPI  │ 控制面板   │ 上传功能  │  ← 联调 →  │  UI打磨  │ Demo │
+  +基建 │ WebSocket│ 情绪/滑块  │ 角色管理  │  Pi部署     │  稳定性   │ 准备  │
+        │ Pi环境   │ Home页    │ Settings │  开机自启   │          │      │
 
         ▼         ▼          ▼          ▼          ▼          ▼
-      Align     Modules    Modules    HW+SW      Full       Demo
-      interfaces run solo  complete   integrate  pipeline    day
+      对齐接口  各模块可    Day1结束    软硬联调    全流程     上台
+      开工     独立运行    各模块可用   开始       跑通       演示
 ```
 
-**Day 1 goal:** Each module runs and tests independently. B uses keyboard to simulate touch. C uses fake data for panel.
+**Day 1 目标：** 每个模块能独立运行和测试。B 用键盘模拟触摸输入，C 用假数据测试面板，不依赖硬件。
 
-**Day 2 goal:** Integrate software + hardware. End-to-end: touch → emotion → face → tentacles. Polish and bugfix.
+**Day 2 目标：** 软硬件集成。端到端：摸它 → 情绪变 → 脸变 → 触手动。修bug打磨。
 
-**Last 8h:** Feature freeze. Bug fixes and demo preparation only.
+**最后 8 小时：** 功能冻结。只修 bug 和准备 Demo 话术、演示流程。
 
-### Risk Mitigation
+### 风险应对
 
-- **Silicone curing failure:** If the first silicone pour has defects (bubbles, leaks), there is no time for a full redo. Fallback: use inflatable balloons inside a fabric sleeve for the body, with touch sensors taped to the outside. Ugly but functional.
-- **Video performance on Pi:** If dual-video crossfade is choppy, fall back to hard-cut transitions (no crossfade). Use 480x480 resolution as the safe baseline. Launch Chromium with `--enable-features=VaapiVideoDecoder --use-gl=egl` for hardware acceleration.
-- **Partial hardware failure at demo:** Demo mode allows the system to function with any subset of hardware working. See Error Handling section.
+- **硅胶固化失败：** 第一次浇注有气泡或漏气，没时间重来。备选方案：用气球塞进布袋做身体，触摸传感器贴在外面。丑但能用。
+- **Pi 视频播放卡顿：** 双视频交叉淡入淡出如果卡，降级为硬切换（无过渡）。用 480x480 分辨率作为安全基线。Chromium 启动参数加 `--enable-features=VaapiVideoDecoder --use-gl=egl` 开硬件加速。
+- **演示现场硬件部分故障：** Demo 模式允许系统在任意硬件子集工作时正常运行。参见「异常处理与降级」章节。
