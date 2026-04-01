@@ -65,21 +65,25 @@ Three software modules:
 | 3.5-5" HDMI LCD | 1 | 80-150 CNY | Square or round IPS preferred |
 | MPR121 capacitive touch module | 1 | 15-25 CNY | 12 channels |
 | 12V micro air pump | 1 | 20-40 CNY | Quiet model preferred |
-| 12V normally-closed solenoid valve | 3 | 15-25 CNY each | 6mm tubing |
-| IRF520 MOSFET module | 4 | 3-5 CNY each | Or 4-ch relay module |
+| 12V normally-closed solenoid valve | 3 | 15-25 CNY each | 6mm tubing, intake |
+| 12V normally-open solenoid valve | 3 | 15-25 CNY each | 6mm tubing, exhaust |
+| IRF520 MOSFET module | 7 | 3-5 CNY each | Or use 8-ch relay module |
 | 12V to 5V buck converter | 1 | 5-10 CNY | 3A+ for Pi |
 | 12V power adapter | 1 | 15-25 CNY | 3A+ |
 | 6mm silicone tubing | 2m | 5-10 CNY | |
 | Dupont wires + breadboard | misc | 15-20 CNY | |
-| **Total** | | **400-650 CNY** | Silicone materials handled by structural engineer |
+| **Total** | | **~500-800 CNY** | Silicone materials handled by structural engineer |
 
 ### GPIO Pin Assignment
 
 ```
 GPIO18 = Air pump on/off (HIGH = on)
-GPIO23 = Valve 1 - Body breathing (HIGH = open)
-GPIO24 = Valve 2 - Left tentacle (HIGH = open)
-GPIO25 = Valve 3 - Right/rear tentacle (HIGH = open)
+GPIO23 = Intake Valve 1 - Body (HIGH = open, NC)
+GPIO24 = Intake Valve 2 - Left tentacle (HIGH = open, NC)
+GPIO25 = Intake Valve 3 - Right tentacle (HIGH = open, NC)
+GPIO12 = Exhaust Valve 1 - Body (HIGH = close, NO)
+GPIO16 = Exhaust Valve 2 - Left tentacle (HIGH = close, NO)
+GPIO20 = Exhaust Valve 3 - Right tentacle (HIGH = close, NO)
 I2C SDA (GPIO2) = MPR121 touch sensor
 I2C SCL (GPIO3) = MPR121 touch sensor
 MPR121 I2C address = 0x5A
@@ -88,16 +92,32 @@ MPR121 I2C address = 0x5A
 ### Pneumatic Topology
 
 ```
-Air pump → Main tube ─┬─→ Valve 1 → Body cavity (breathing)
-                      ├─→ Valve 2 → Left tentacle cavity
-                      └─→ Valve 3 → Right/rear tentacle cavity
+                     ┌─→ Valve 1 (NC) → Body cavity ──→ Exhaust Valve 1 (NO) → vent
+Air pump → Main tube ┼─→ Valve 2 (NC) → Left tentacle → Exhaust Valve 2 (NO) → vent
+                     └─→ Valve 3 (NC) → Right tentacle → Exhaust Valve 3 (NO) → vent
+
+NC = normally-closed (default: air blocked, open to inflate)
+NO = normally-open  (default: air vents out, close to hold pressure)
 ```
+
+**Inflate cycle:** Open intake valve (NC→open) + close exhaust valve (NO→closed) + pump ON.
+**Deflate cycle:** Close intake valve (NC→closed) + open exhaust valve (NO→open) + pump OFF. Air escapes passively through the exhaust.
+**Hold:** Close both intake and exhaust valves.
+
+**Pump safety watchdog:**
+- Maximum continuous pump runtime: 10 seconds. Engine auto-kills pump after 10s and requires 2s cooldown.
+- Maximum valve-closed (hold pressure) duration: 30 seconds. After 30s, exhaust valve auto-opens to release pressure.
+- On Engine process exit or crash: all GPIO pins reset to LOW (all NC valves close, all NO valves open → safe deflation). Implemented via `atexit` handler and `signal` handler for SIGTERM/SIGINT.
+
+### Additional Hardware for Exhaust Path
+
+The exhaust/deflation path requires 3 additional normally-open solenoid valves (already included in BOM above).
 
 ### Physical Form
 
 The blob is an abstract creature — not a specific animal:
 - Central round body (houses the display screen)
-- 3-4 irregular soft tentacles extending from the body
+- 2 independently controlled tentacles (left + right) + optional passive tentacles (no pneumatics, just floppy silicone for aesthetics)
 - No defined front/back — it's a blob of living matter
 - Semi-translucent or fluorescent silicone for an alien aesthetic
 - Capacitive touch sensors embedded under the silicone surface
@@ -156,13 +176,25 @@ Key design decisions:
 
 ### Touch Pattern Recognition
 
+The MPR121 provides 12 discrete touch channels (0-11), not continuous XY coordinates. Channels are mapped to physical zones on the blob:
+
+```
+MPR121 Channel Mapping:
+  Channels 0-3:  Body top (around screen)
+  Channels 4-5:  Body sides
+  Channels 6-8:  Left tentacle (base → tip)
+  Channels 9-11: Right tentacle (base → tip)
+```
+
+Person A places sensors according to this zone map. Person B reads channel numbers and classifies by zone.
+
 | Pattern | Detection Rule | Triggers |
 |---------|---------------|----------|
-| Gentle tap | Single point, < 500ms | Happy |
-| Sustained press | Same point, > 2s | Shy |
-| Rapid taps | 3+ taps within 1s | Excited |
-| Slap | Multi-point + high frequency | Grumpy |
-| New location | Distance from last touch > threshold | Curious |
+| Gentle tap | Single channel, < 500ms | Happy |
+| Sustained press | Same channel held > 2s | Shy |
+| Rapid taps | 3+ activations within 1s on any channels | Excited |
+| Slap | 3+ channels activate simultaneously | Grumpy |
+| New zone | Channel in different zone from last touch | Curious |
 | No touch | > 60s silence | Sleepy |
 
 ## AIGC Face System
@@ -279,6 +311,30 @@ server/
 
 All communication uses WebSocket with JSON messages. Every message has a `type` field for routing.
 
+### WebSocket Architecture
+
+```
+                  ┌───────── ws://localhost:8000/ws/eye ──────────┐
+                  │                                                │
+             ┌────▼─────┐                                   ┌─────┴──────┐
+             │ Eye App  │                                   │   Blob     │
+             │ (browser)│                                   │  Engine    │
+             └──────────┘                                   │  (Python)  │
+                                                            └─────┬──────┘
+             ┌──────────┐                                         │
+             │ Mobile   │── ws://192.168.x.x:8000/ws/mobile ─────┘
+             │ (phone)  │
+             └──────────┘
+```
+
+The **Blob Engine runs its own WebSocket server** (via `websockets` library) on port 8000 with two endpoints:
+- `/ws/eye` — Eye App connects here. Only one connection expected.
+- `/ws/mobile` — Mobile clients connect here. Multiple connections allowed (all receive same state_sync).
+
+The **FastAPI server** runs on port 8080 and handles REST API only (file uploads, character CRUD, health check). It does NOT proxy WebSocket traffic — the Engine handles WebSocket directly to minimize latency for touch feedback.
+
+Mobile clients connect to the Engine's WebSocket for real-time control, and to the FastAPI server for REST operations (file upload, character listing).
+
 ### Engine → Eye App (video control)
 
 ```json
@@ -293,11 +349,18 @@ All communication uses WebSocket with JSON messages. Every message has a `type` 
 ```json
 {
   "type": "touch_feedback",
-  "x": 0.6, "y": 0.3,
+  "zone": "body_top",
+  "channel": 2,
   "gesture": "tap",
   "effect": "ripple"
 }
 ```
+
+The Eye App maps zones to screen regions for overlay effects:
+- `body_top` → center of screen
+- `body_sides` → left/right edge
+- `left_tentacle` → bottom-left
+- `right_tentacle` → bottom-right
 
 ### Engine → Mobile (state sync, every 500ms)
 
@@ -307,11 +370,17 @@ All communication uses WebSocket with JSON messages. Every message has a `type` 
   "emotion": "excited",
   "intensity": 0.85,
   "breathing_bpm": 24,
-  "tentacles": [0.9, 0.7, 0.8],
+  "tentacles": [0.9, 0.7],
   "touch_active": true,
   "character": "trump"
 }
 ```
+
+**Field definitions:**
+- `intensity` (0.0 - 1.0): Global performance intensity. Scales three things simultaneously: (1) pump duty cycle / inflation depth, (2) breathing amplitude, (3) tentacle movement range. At 0.0 the blob barely moves; at 1.0 it's maximum drama. Default: 0.7.
+- `tentacles` array: Current inflation ratio per channel. Index 0 = left tentacle, index 1 = right tentacle. 0.0 = fully deflated, 1.0 = maximum inflation. Read-only for mobile display.
+- `breathing_bpm`: Current breaths per minute.
+- `touch_active`: Whether any touch channel is currently activated.
 
 ### Mobile → Engine (user commands)
 
@@ -326,9 +395,13 @@ All communication uses WebSocket with JSON messages. Every message has a `type` 
 ### Mobile → Server (file upload via REST)
 
 ```
-POST /api/characters/{name}/upload
-Content-Type: multipart/form-data
-Body: emotion=happy, file=happy.mp4
+POST   /api/characters                       # Create new character pack (body: { name })
+GET    /api/characters                       # List all packs with completeness status
+GET    /api/characters/{name}                # Get one pack's detail (which emotions have videos)
+DELETE /api/characters/{name}                # Delete a pack
+POST   /api/characters/{name}/videos         # Upload video (multipart: emotion=happy, file=happy.mp4)
+GET    /api/characters/{name}/videos/{emotion} # Stream a video file (for preview thumbnail)
+GET    /api/status                           # System health: engine running, screen connected, touch active
 ```
 
 ## Mobile Control Panel
@@ -365,6 +438,74 @@ Four-tab SPA served by FastAPI, accessed via same-LAN mobile browser.
 - Touch sensitivity adjustment
 - Pump force ceiling (safety limit)
 - System restart
+
+## Startup, Shutdown, and Error Handling
+
+### Startup Sequence
+
+`scripts/start.sh` launches all processes in order via a simple shell script (no systemd needed for hackathon):
+
+1. **FastAPI server** starts first (port 8080) — serves mobile panel static files and REST API.
+2. **Blob Engine** starts second (port 8000) — opens WebSocket server, initializes GPIO, starts main loop.
+3. **Eye App** starts last — `chromium-browser --kiosk --disable-infobars --enable-features=VaapiVideoDecoder http://localhost:8000/ws/eye` (fullscreen mode, hardware video decode enabled).
+
+Health check: `start.sh` waits for each process to bind its port before starting the next one. If any process fails to start within 10 seconds, the script prints an error and exits.
+
+### Shutdown Sequence
+
+`scripts/stop.sh` or Ctrl+C on `start.sh`:
+
+1. Send SIGTERM to Blob Engine → `atexit` handler sets all GPIO LOW (safe deflation) → process exits.
+2. Send SIGTERM to FastAPI server → process exits.
+3. Kill Chromium process.
+
+**Critical: GPIO cleanup on crash.** The Engine registers both `atexit` and `signal.signal(SIGTERM/SIGINT)` handlers that call `GPIO.cleanup()`. This ensures all NC valves close and all NO valves open (= safe deflation) even on unexpected termination.
+
+### Error Handling and Fallbacks
+
+| Failure | Behavior |
+|---------|----------|
+| Eye App WebSocket disconnects | Engine continues running. Eye App auto-reconnects every 2 seconds. Face freezes on last frame during disconnect. |
+| Mobile WebSocket disconnects | Engine continues in auto mode (touch-driven). Mobile panel shows "Reconnecting..." and auto-retries. |
+| MPR121 touch sensor not detected on I2C | Engine starts in "no-touch" mode. Logs warning. Mobile-only control works. Emotion stays on Calm unless mobile overrides. |
+| Incomplete character pack (< 7 videos) | System allows switching to it. Missing emotions fall back to a static placeholder image (a "?" face). Mobile shows which emotions are missing. |
+| Pump runs > 10s continuously | Watchdog auto-kills pump. 2s cooldown before next activation. |
+| Valve held closed > 30s | Exhaust valve auto-opens to release pressure. |
+| Engine process crashes | GPIO cleanup handler fires. start.sh can be re-run manually. |
+
+### Demo Mode
+
+For situations where hardware partially fails during the demo:
+
+Activated via mobile Settings tab or by starting Engine with `--demo` flag.
+
+- **No touch sensor?** → Mobile panel becomes the sole input. Emotion buttons work as normal.
+- **No pneumatics?** → Face videos still switch on the screen. The experience degrades gracefully to "interactive face display."
+- **No screen?** → Tentacles still respond to touch. The experience degrades to "touch-responsive soft sculpture."
+
+The core loop (touch → emotion → outputs) is designed so each output channel (face, body, mobile) operates independently. Any combination can fail without crashing the Engine.
+
+## Character Pack Format
+
+Each character pack is a directory under `characters/` with a `manifest.json`:
+
+```json
+{
+  "name": "Trump",
+  "created_at": "2026-04-01T12:00:00Z",
+  "videos": {
+    "calm": "calm.mp4",
+    "happy": "happy.mp4",
+    "excited": "excited.mp4",
+    "curious": "curious.mp4",
+    "sleepy": "sleepy.mp4",
+    "shy": "shy.mp4",
+    "grumpy": "grumpy.mp4"
+  }
+}
+```
+
+`manifest.json` is auto-generated by the server when videos are uploaded. The `videos` map only includes emotions that have been uploaded — missing keys indicate incomplete pack. The mobile Upload tab reads this to show completion status.
 
 ## Project File Structure
 
@@ -451,14 +592,16 @@ Owns remote control and system infrastructure:
 
 **Deliverable:** Open phone browser → control everything + upload character videos.
 
+**Side task for Person C (hours 0-8):** Generate the first character pack (7 AIGC emotion videos) using any tool while setting up the Pi environment. This ensures there is demo content ready before integration begins.
+
 ### Integration Interfaces
 
 Only two interfaces need to be agreed upon before independent development:
 
 **Interface 1: A ↔ B (GPIO hardware protocol)**
 ```
-GPIO18 = pump (HIGH=on), GPIO23 = valve1-body, GPIO24 = valve2-tentL, GPIO25 = valve3-tentR
-I2C = MPR121 touch (0x5A)
+GPIO18 = pump, GPIO23-25 = intake valves (NC), GPIO12/16/20 = exhaust valves (NO)
+I2C = MPR121 touch (0x5A), channels 0-5 = body, 6-8 = left tentacle, 9-11 = right tentacle
 ```
 
 **Interface 2: B ↔ C (WebSocket message protocol)**
@@ -495,3 +638,9 @@ C Phone │ FastAPI │ Control │ Upload  │ ← Integration → │  Demo  �
 **Day 2 goal:** Integrate software + hardware. End-to-end: touch → emotion → face → tentacles. Polish and bugfix.
 
 **Last 8h:** Feature freeze. Bug fixes and demo preparation only.
+
+### Risk Mitigation
+
+- **Silicone curing failure:** If the first silicone pour has defects (bubbles, leaks), there is no time for a full redo. Fallback: use inflatable balloons inside a fabric sleeve for the body, with touch sensors taped to the outside. Ugly but functional.
+- **Video performance on Pi:** If dual-video crossfade is choppy, fall back to hard-cut transitions (no crossfade). Use 480x480 resolution as the safe baseline. Launch Chromium with `--enable-features=VaapiVideoDecoder --use-gl=egl` for hardware acceleration.
+- **Partial hardware failure at demo:** Demo mode allows the system to function with any subset of hardware working. See Error Handling section.
