@@ -1,11 +1,12 @@
-"""Blob Engine — minimal WebSocket server.
+"""Blob Engine — WebSocket server + gait controller.
 
-MVP features:
+Features:
 - /ws/eye endpoint: Eye App connects here
 - /ws/mobile endpoint: Mobile clients connect here
-- Mobile sends set_emotion → relays play_emotion to Eye App
+- Mobile sends set_emotion → relays play_emotion to Eye App + updates gait
 - Mobile sends switch_character → updates current character
 - Periodic state_sync push to mobile clients
+- GPIO gait controller: pump + valve control per emotion
 """
 
 import asyncio
@@ -19,8 +20,17 @@ from websockets.server import serve
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
 log = logging.getLogger("engine")
 
+# 延迟导入 gait controller，Mac 上也能运行
+try:
+    from gait_controller import GaitController
+    _HAS_GAIT = True
+except ImportError:
+    _HAS_GAIT = False
+    log.warning("GaitController not available (missing deps?) — gait disabled")
+
+
 class BlobEngine:
-    def __init__(self, port: int = 8000, characters_dir: str = "characters"):
+    def __init__(self, port: int = 8000, characters_dir: str = "characters", enable_gait: bool = True):
         self.port = port
         self.characters_dir = Path(characters_dir)
         self.eye_ws = None
@@ -28,6 +38,8 @@ class BlobEngine:
         self.current_emotion = "calm"
         self.current_character = None
         self._running = False
+        self._intensity = 0.7
+        self.gait = GaitController() if (_HAS_GAIT and enable_gait) else None
 
     async def start(self):
         self._running = True
@@ -37,6 +49,10 @@ class BlobEngine:
                     self.current_character = d.name
                     break
 
+        # 启动步态控制器
+        if self.gait:
+            await self.gait.start()
+
         async with serve(self._handler, "0.0.0.0", self.port):
             log.info(f"Engine WebSocket server on port {self.port}")
             sync_task = asyncio.create_task(self._state_sync_loop())
@@ -44,6 +60,8 @@ class BlobEngine:
                 await asyncio.Future()
             finally:
                 sync_task.cancel()
+                if self.gait:
+                    await self.gait.stop()
 
     async def _handler(self, websocket):
         path = websocket.request.path if hasattr(websocket, 'request') else websocket.path
@@ -80,7 +98,13 @@ class BlobEngine:
         if msg_type == "set_emotion":
             self.current_emotion = data["emotion"]
             log.info(f"Emotion → {self.current_emotion}")
+            if self.gait:
+                self.gait.set_emotion(self.current_emotion)
             await self._send_play_emotion()
+        elif msg_type == "set_intensity":
+            self._intensity = max(0.0, min(1.0, data.get("value", 0.7)))
+            if self.gait:
+                self.gait.set_intensity(self._intensity)
         elif msg_type == "switch_character":
             self.current_character = data["name"]
             log.info(f"Character → {self.current_character}")
@@ -116,11 +140,14 @@ class BlobEngine:
     async def _state_sync_loop(self):
         while True:
             await asyncio.sleep(0.5)
+            legs = self.gait.leg_states if self.gait else [0.0, 0.0]
             state = json.dumps({
                 "type": "state_sync",
                 "emotion": self.current_emotion,
                 "character": self.current_character,
-                "intensity": 0.7,
+                "intensity": self._intensity,
+                "legs": legs,
+                "pump_on": self.gait.is_pump_on if self.gait else False,
             })
             for ws in list(self.mobile_clients):
                 try:
