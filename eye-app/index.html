@@ -8,11 +8,15 @@
 </head>
 <body>
   <div id="screen">
-    <img id="layer-a" class="emotion-img active" src="" alt="">
-    <img id="layer-b" class="emotion-img" src="" alt="">
+    <!-- Layer 1: 用户照片 -->
+    <img id="face" class="face-img" src="" alt="">
+    <!-- Layer 2: CSS 情绪滤镜（应用在 face 上）-->
+    <!-- Layer 3: Canvas 粒子动画 -->
+    <canvas id="particles" width="480" height="480"></canvas>
     <div id="status-dot"></div>
   </div>
   <script src="ws.js"></script>
+  <script src="particles.js"></script>
   <script src="player.js"></script>
 </body>
 </html>

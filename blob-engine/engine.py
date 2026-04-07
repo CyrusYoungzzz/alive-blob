@@ -75,6 +75,8 @@ class BlobEngine:
     async def _handle_eye(self, ws):
         self.eye_ws = ws
         log.info("Eye App connected")
+        # 发送当前角色的照片 + 当前情绪
+        await self._send_set_face()
         await self._send_play_emotion()
         try:
             async for msg in ws:
@@ -108,6 +110,7 @@ class BlobEngine:
         elif msg_type == "switch_character":
             self.current_character = data["name"]
             log.info(f"Character → {self.current_character}")
+            await self._send_set_face()
             await self._send_play_emotion()
         elif msg_type == "list_characters":
             chars = []
@@ -120,6 +123,21 @@ class BlobEngine:
                     await ws.send(json.dumps({"type": "characters_list", "characters": chars}))
                 except Exception:
                     pass
+
+    async def _send_set_face(self):
+        """发送用户原始照片给 Eye App。"""
+        if self.eye_ws is None or self.current_character is None:
+            return
+        image_url = f"/characters/{self.current_character}/source.jpg"
+        msg = json.dumps({
+            "type": "set_face",
+            "image_url": image_url,
+            "character": self.current_character,
+        })
+        try:
+            await self.eye_ws.send(msg)
+        except Exception:
+            log.warning("Failed to send set_face to Eye App")
 
     async def _send_play_emotion(self):
         if self.eye_ws is None or self.current_character is None:

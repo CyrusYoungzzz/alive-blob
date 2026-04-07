@@ -21,13 +21,12 @@ async def test_engine_echo_emotion():
         eye_ws = await websockets.connect(f"ws://localhost:{WS_PORT}/ws/eye")
         mobile_ws = await websockets.connect(f"ws://localhost:{WS_PORT}/ws/mobile")
 
-        # Drain the initial play_emotion sent on Eye App connect
-        try:
-            initial = await asyncio.wait_for(eye_ws.recv(), timeout=1)
-            initial_data = json.loads(initial)
-            assert initial_data["type"] == "play_emotion"
-        except asyncio.TimeoutError:
-            pass  # no initial message is also acceptable
+        # Drain initial messages sent on Eye App connect (set_face + play_emotion)
+        for _ in range(3):
+            try:
+                initial = await asyncio.wait_for(eye_ws.recv(), timeout=1)
+            except asyncio.TimeoutError:
+                break
 
         await mobile_ws.send(json.dumps({"type": "set_emotion", "emotion": "happy"}))
 
