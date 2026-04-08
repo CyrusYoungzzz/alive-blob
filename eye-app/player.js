@@ -1,44 +1,79 @@
 /**
- * 播放器 — 管理照片显示和情绪切换
+ * Player — bridges WebSocket messages to Cube 3D / Image character display.
  *
- * 消息类型:
- *   set_face    → 加载用户照片 (character 切换时)
- *   play_emotion → 切换 CSS 情绪特效 + 粒子
+ * Messages:
+ *   set_face      → switch character (3d / image / custom)
+ *   play_emotion  → change emotion effects
  */
 (() => {
-  const face = document.getElementById('face');
   const screen = document.getElementById('screen');
+  const container = document.getElementById('container');
+  const face = document.getElementById('face');
   const SERVER_BASE = `http://${location.hostname}:8080`;
-  let currentEmotion = 'calm';
 
-  function setFace(imageUrl) {
-    const fullUrl = imageUrl.startsWith('http') ? imageUrl : SERVER_BASE + imageUrl;
-    face.src = fullUrl;
+  let currentMode = '3d';   // '3d' | 'image'
+  let currentEmotion = 'calm';
+  let cubeReady = false;
+
+  function initCube() {
+    CubeCharacter.init(container);
+    cubeReady = true;
+  }
+
+  function showMode(mode) {
+    currentMode = mode;
+    if (mode === '3d') {
+      container.style.display = '';
+      face.classList.remove('active');
+      Particles.stop();
+      if (!cubeReady) initCube();
+      CubeCharacter.setEmotion(currentEmotion);
+    } else {
+      container.style.display = 'none';
+      face.classList.add('active');
+      Particles.start();
+      Particles.setEmotion(currentEmotion);
+      applyImageEmotion(currentEmotion);
+    }
+  }
+
+  function applyImageEmotion(emotion) {
+    // remove old emo-* classes, add new
+    screen.className = screen.className.replace(/\bemo-\w+/g, '').trim();
+    screen.classList.add(`emo-${emotion}`);
   }
 
   function setEmotion(emotion) {
     currentEmotion = emotion;
-    // 更新 screen class → 触发 CSS 滤镜 + 动画
-    screen.className = `emotion-${emotion}`;
-    // 更新粒子系统
-    Particles.setEmotion(emotion);
+    if (currentMode === '3d') {
+      CubeCharacter.setEmotion(emotion);
+    } else {
+      applyImageEmotion(emotion);
+      Particles.setEmotion(emotion);
+    }
   }
 
-  // 监听 Engine 消息
+  // Listen to Engine
   EyeWS.onMessage = (data) => {
     if (data.type === 'set_face') {
-      setFace(data.image_url);
-    } else if (data.type === 'play_emotion') {
-      // 兼容：如果带 image_path 且还没有 face，用它加载
-      if (data.image_path && !face.src) {
-        setFace(data.image_path);
+      const charType = data.char_type || 'custom';
+      if (charType === '3d') {
+        showMode('3d');
+      } else {
+        // image or custom character
+        const url = data.avatar || (data.image_url
+          ? (data.image_url.startsWith('http') ? data.image_url : SERVER_BASE + data.image_url)
+          : '');
+        if (url) face.src = url;
+        showMode('image');
       }
+    } else if (data.type === 'play_emotion') {
       setEmotion(data.emotion);
     }
   };
 
-  // 启动
+  // Boot
+  initCube();
   EyeWS.connect();
-  Particles.start();
   setEmotion('calm');
 })();
