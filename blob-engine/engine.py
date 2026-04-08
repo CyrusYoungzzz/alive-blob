@@ -29,11 +29,21 @@ except ImportError:
     log.warning("GaitController not available (missing deps?) — gait disabled")
 
 
+BUILTIN_CHARS = {
+    "cube": {"type": "3d", "name": "Cube", "avatar": None},
+    "keji-shu": {
+        "type": "image",
+        "name": "科技薯",
+        "avatar": "https://sns-avatar-qc.xhscdn.com/avatar/1040g2jo3154311m61e6g5pkcpsk0uc8t76cabeo?imageView2/2/w/540/format/webp",
+    },
+}
+
+
 class BlobEngine:
     def __init__(self, port: int = 8000, characters_dir: str = "characters", enable_gait: bool = True):
         self.port = port
         self.characters_dir = Path(characters_dir)
-        self.eye_ws = None
+        self.eye_clients: set = set()
         self.mobile_clients: set = set()
         self.current_emotion = "calm"
         self.current_character = None
@@ -73,17 +83,16 @@ class BlobEngine:
             await websocket.close(4004, "Unknown path")
 
     async def _handle_eye(self, ws):
-        self.eye_ws = ws
-        log.info("Eye App connected")
-        # 发送当前角色的照片 + 当前情绪
-        await self._send_set_face()
-        await self._send_play_emotion()
+        self.eye_clients.add(ws)
+        log.info(f"Eye App connected ({len(self.eye_clients)} total)")
+        await self._send_set_face(ws)
+        await self._send_play_emotion(ws)
         try:
             async for msg in ws:
                 pass
         finally:
-            self.eye_ws = None
-            log.info("Eye App disconnected")
+            self.eye_clients.discard(ws)
+            log.info(f"Eye App disconnected ({len(self.eye_clients)} total)")
 
     async def _handle_mobile(self, ws):
         self.mobile_clients.add(ws)
@@ -124,36 +133,51 @@ class BlobEngine:
                 except Exception:
                     pass
 
-    async def _send_set_face(self):
-        """发送用户原始照片给 Eye App。"""
-        if self.eye_ws is None or self.current_character is None:
+    async def _send_set_face(self, target=None):
+        """发送角色信息给 Eye App。target=None 广播给所有 eye clients。"""
+        if self.current_character is None:
             return
-        image_url = f"/characters/{self.current_character}/source.jpg"
-        msg = json.dumps({
-            "type": "set_face",
-            "image_url": image_url,
-            "character": self.current_character,
-        })
-        try:
-            await self.eye_ws.send(msg)
-        except Exception:
-            log.warning("Failed to send set_face to Eye App")
+        builtin = BUILTIN_CHARS.get(self.current_character)
+        if builtin:
+            msg = json.dumps({
+                "type": "set_face",
+                "character": self.current_character,
+                "char_type": builtin["type"],
+                "avatar": builtin["avatar"],
+            })
+        else:
+            msg = json.dumps({
+                "type": "set_face",
+                "image_url": f"/characters/{self.current_character}/source.jpg",
+                "character": self.current_character,
+                "char_type": "custom",
+            })
+        targets = [target] if target else list(self.eye_clients)
+        for ws in targets:
+            try:
+                await ws.send(msg)
+            except Exception:
+                self.eye_clients.discard(ws)
 
-    async def _send_play_emotion(self):
-        if self.eye_ws is None or self.current_character is None:
+    async def _send_play_emotion(self, target=None):
+        if self.current_character is None:
             return
-        image_path = f"/characters/{self.current_character}/{self.current_emotion}.png"
+        builtin = BUILTIN_CHARS.get(self.current_character)
+        char_type = builtin["type"] if builtin else "custom"
         msg = json.dumps({
             "type": "play_emotion",
-            "image_path": image_path,
             "emotion": self.current_emotion,
+            "char_type": char_type,
+            "image_path": f"/characters/{self.current_character}/{self.current_emotion}.png",
             "transition": "crossfade",
             "transition_ms": 800,
         })
-        try:
-            await self.eye_ws.send(msg)
-        except Exception:
-            log.warning("Failed to send to Eye App")
+        targets = [target] if target else list(self.eye_clients)
+        for ws in targets:
+            try:
+                await ws.send(msg)
+            except Exception:
+                self.eye_clients.discard(ws)
 
     async def _state_sync_loop(self):
         while True:

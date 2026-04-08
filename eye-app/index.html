@@ -5,17 +5,20 @@
   <meta name="viewport" content="width=480, initial-scale=1.0, user-scalable=no">
   <title>Alive Blob Eye</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
   <div id="screen">
-    <!-- Layer 1: 用户照片 -->
+    <!-- 3D Cube layer -->
+    <div id="container"></div>
+    <!-- Image character layer -->
     <img id="face" class="face-img" src="" alt="">
-    <!-- Layer 2: CSS 情绪滤镜（应用在 face 上）-->
-    <!-- Layer 3: Canvas 粒子动画 -->
+    <!-- Emoji particle canvas -->
     <canvas id="particles" width="480" height="480"></canvas>
     <div id="status-dot"></div>
   </div>
   <script src="ws.js"></script>
+  <script src="cube.js"></script>
   <script src="particles.js"></script>
   <script src="player.js"></script>
 </body>

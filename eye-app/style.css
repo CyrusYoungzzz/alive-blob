@@ -13,146 +13,129 @@ html, body {
   height: 480px;
   border-radius: 50%;
   overflow: hidden;
-  background: #111;
+  background: radial-gradient(circle at center, #0a0a0f 0%, #000000 100%);
 }
 
-/* ─── 用户照片基础层 ─── */
+/* ─── 3D Cube layer ─── */
+#container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ─── Image character layer ─── */
 .face-img {
   position: absolute;
   top: 0; left: 0;
-  width: 100%;
-  height: 100%;
+  width: 100%; height: 100%;
   object-fit: cover;
-  transition: filter 0.6s ease, transform 0.6s ease;
+  display: none;
+  transition: filter 0.8s ease, transform 0.8s ease;
 }
+.face-img.active { display: block; }
 
-/* ─── Canvas 粒子层 ─── */
+/* ─── Particle canvas ─── */
 #particles {
   position: absolute;
   top: 0; left: 0;
-  width: 100%;
-  height: 100%;
+  width: 100%; height: 100%;
   pointer-events: none;
   z-index: 10;
 }
 
 #status-dot {
   position: absolute;
-  bottom: 20px;
-  right: 20px;
-  width: 8px;
-  height: 8px;
+  bottom: 20px; right: 20px;
+  width: 8px; height: 8px;
   border-radius: 50%;
   background: #f00;
   z-index: 20;
 }
-
 #status-dot.connected { background: #0f0; }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   情绪 CSS 特效
+   Image character — emotion effects
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-/* Calm — 蓝色柔光, 缓慢呼吸 */
-#screen.emotion-calm { background: #0d1b2a; }
-#screen.emotion-calm .face-img {
-  filter: brightness(0.9) saturate(0.8) sepia(0.1) hue-rotate(200deg);
-  animation: breathe 4s ease-in-out infinite;
+/* Calm — cool tint, slow breathing */
+#screen.emo-calm .face-img {
+  filter: brightness(0.95) saturate(0.85) hue-rotate(15deg);
+  animation: calm-breathe 4s ease-in-out infinite;
 }
-
-@keyframes breathe {
+@keyframes calm-breathe {
   0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.03); }
+  50%      { transform: scale(1.03); }
 }
 
-/* Happy — 明亮温暖, 轻微弹跳 */
-#screen.emotion-happy { background: #2a1f00; }
-#screen.emotion-happy .face-img {
-  filter: brightness(1.2) saturate(1.3) sepia(0.15);
-  animation: bounce 0.6s ease-in-out infinite;
+/* Happy — warm glow, gentle bounce */
+#screen.emo-happy .face-img {
+  filter: brightness(1.2) saturate(1.4) sepia(0.15) hue-rotate(-10deg);
+  animation: happy-bounce 0.7s ease-in-out infinite;
+}
+@keyframes happy-bounce {
+  0%, 100% { transform: translateY(0) scale(1) rotate(0deg); }
+  50%      { transform: translateY(-10px) scale(1.04) rotate(1deg); }
 }
 
-@keyframes bounce {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-8px) scale(1.02); }
+/* Excited — high contrast, fast shake + warp */
+#screen.emo-excited .face-img {
+  filter: brightness(1.35) saturate(1.9) contrast(1.2) hue-rotate(-20deg);
+  animation: excited-shake 0.12s ease-in-out infinite;
+}
+@keyframes excited-shake {
+  0%   { transform: translate(0, 0) rotate(0deg) scale(1.02); }
+  25%  { transform: translate(-5px, -3px) rotate(-3deg) scale(1.05); }
+  50%  { transform: translate(4px, 2px) rotate(2deg) scale(1.03); }
+  75%  { transform: translate(-3px, 4px) rotate(-1deg) scale(1.06); }
+  100% { transform: translate(5px, -2px) rotate(3deg) scale(1.02); }
 }
 
-/* Excited — 高饱和, 快速抖动 */
-#screen.emotion-excited { background: #2a0a0a; }
-#screen.emotion-excited .face-img {
-  filter: brightness(1.3) saturate(1.8) contrast(1.2);
-  animation: shake 0.15s ease-in-out infinite;
+/* Curious — gentle tilt sway, slight zoom */
+#screen.emo-curious .face-img {
+  filter: brightness(1.05) saturate(1.15) hue-rotate(25deg);
+  animation: curious-tilt 2.5s ease-in-out infinite;
+}
+@keyframes curious-tilt {
+  0%, 100% { transform: rotate(0deg) scale(1.02) translateX(0); }
+  25%      { transform: rotate(6deg) scale(1.06) translateX(12px); }
+  75%      { transform: rotate(-6deg) scale(1.06) translateX(-12px); }
 }
 
-@keyframes shake {
-  0%, 100% { transform: translateX(0) rotate(0deg); }
-  25% { transform: translateX(-4px) rotate(-2deg); }
-  75% { transform: translateX(4px) rotate(2deg); }
+/* Sleepy — dim blur, slow droop */
+#screen.emo-sleepy .face-img {
+  filter: brightness(0.55) saturate(0.35) blur(2px) hue-rotate(200deg);
+  animation: sleepy-droop 3.5s ease-in-out infinite;
+}
+@keyframes sleepy-droop {
+  0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
+  40%      { transform: translateY(8px) rotate(-4deg) scale(0.98); }
+  80%      { transform: translateY(15px) rotate(-7deg) scale(0.96); }
 }
 
-/* Curious — 左右倾斜摇摆 */
-#screen.emotion-curious { background: #1a1a2e; }
-#screen.emotion-curious .face-img {
-  filter: brightness(1.05) saturate(1.1) hue-rotate(30deg);
-  animation: tilt 2s ease-in-out infinite;
+/* Shy — pink tint, shrink tremble */
+#screen.emo-shy .face-img {
+  filter: brightness(0.9) saturate(1.3) sepia(0.25) hue-rotate(320deg);
+  animation: shy-tremble 0.6s ease-in-out infinite;
 }
-
-@keyframes tilt {
-  0%, 100% { transform: rotate(0deg) translateX(0); }
-  25% { transform: rotate(8deg) translateX(10px); }
-  75% { transform: rotate(-8deg) translateX(-10px); }
-}
-
-/* Sleepy — 模糊暗淡, 缓慢下沉 */
-#screen.emotion-sleepy { background: #0a0a14; }
-#screen.emotion-sleepy .face-img {
-  filter: brightness(0.6) saturate(0.4) blur(1.5px);
-  animation: drowsy 3s ease-in-out infinite;
-}
-
-@keyframes drowsy {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  30% { transform: translateY(5px) rotate(-3deg); }
-  70% { transform: translateY(12px) rotate(-6deg); }
-}
-
-/* Shy — 粉色色调, 缩小微颤 */
-#screen.emotion-shy { background: #2a1020; }
-#screen.emotion-shy .face-img {
-  filter: brightness(0.95) saturate(1.2) sepia(0.2) hue-rotate(330deg);
-  animation: shy-tremble 0.8s ease-in-out infinite;
-}
-
 @keyframes shy-tremble {
-  0%, 100% { transform: scale(0.92) translateY(5px); }
-  50% { transform: scale(0.93) translateY(3px); }
+  0%, 100% { transform: scale(0.90) translateY(8px) rotate(0deg); }
+  25%      { transform: scale(0.91) translateY(6px) rotate(0.5deg); }
+  75%      { transform: scale(0.89) translateY(9px) rotate(-0.5deg); }
 }
 
-/* Grumpy — 红色色调, 猛烈摇晃 */
-#screen.emotion-grumpy { background: #1a0505; }
-#screen.emotion-grumpy .face-img {
-  filter: brightness(0.8) saturate(1.5) sepia(0.3) hue-rotate(350deg) contrast(1.3);
-  animation: rage-shake 0.1s ease-in-out infinite;
+/* Grumpy — red rage, violent shake */
+#screen.emo-grumpy .face-img {
+  filter: brightness(0.75) saturate(1.6) sepia(0.3) hue-rotate(345deg) contrast(1.35);
+  animation: grumpy-rage 0.08s ease-in-out infinite;
+}
+@keyframes grumpy-rage {
+  0%   { transform: translate(0, 0) rotate(0deg) scale(1.01); }
+  25%  { transform: translate(-7px, -3px) rotate(-4deg) scale(1.03); }
+  50%  { transform: translate(5px, 4px) rotate(3deg) scale(1.01); }
+  75%  { transform: translate(-4px, -2px) rotate(-2deg) scale(1.04); }
+  100% { transform: translate(7px, 2px) rotate(4deg) scale(1.02); }
 }
 
-@keyframes rage-shake {
-  0% { transform: translateX(0) translateY(0) rotate(0deg); }
-  25% { transform: translateX(-6px) translateY(-2px) rotate(-3deg); }
-  50% { transform: translateX(4px) translateY(2px) rotate(2deg); }
-  75% { transform: translateX(-3px) translateY(-1px) rotate(-1deg); }
-  100% { transform: translateX(6px) translateY(1px) rotate(3deg); }
-}
-
-/* ─── 无照片时的占位 ─── */
-.face-img[src=""] {
-  display: none;
-}
-
-#screen:not(:has(.face-img[src]:not([src=""])))::after {
-  content: "👁";
-  position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 120px;
-  opacity: 0.3;
-}
+/* Hide face placeholder when no src */
+.face-img[src=""] { display: none !important; }
