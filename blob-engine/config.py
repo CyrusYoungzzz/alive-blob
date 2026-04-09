@@ -33,3 +33,13 @@ GAIT_PARAMS = {
     "shy":     {"step_ms": 1500, "duty": 0.3, "pattern": "steady"},
     "grumpy":  {"step_ms": 600,  "duty": 0.8, "pattern": "stomp"},
 }
+
+# ─── 触摸传感器 ───
+TOUCH_CHANNEL = 0            # MPR121 通道
+TOUCH_POLL_INTERVAL = 0.02   # 20ms 轮询
+TOUCH_BASELINE_ALPHA = 0.05  # 基线更新速率
+TOUCH_HIT_THRESHOLD = 40     # 打击阈值
+TOUCH_HIT_COOLDOWN = 0.15    # 防抖间隔（秒）
+TOUCH_LIGHT_HIT = 40
+TOUCH_MEDIUM_HIT = 100
+TOUCH_HEAVY_HIT = 200
