@@ -21,6 +21,7 @@
   ];
 
   let ws = null, currentCharId = 'cube', currentEmotion = 'calm';
+  let rankings = [], totalInteractions = 0, lastHitTs = null;
 
   /* ── Slider ── */
   const slider = document.getElementById('slider');
@@ -67,6 +68,16 @@
       if (d.type === 'state_sync') {
         if (d.character) currentCharId = d.character;
         if (d.emotion && d.emotion !== currentEmotion) { currentEmotion = d.emotion; syncUI(); }
+      } else if (d.type === 'interaction_init') {
+        rankings = d.rankings || [];
+        totalInteractions = d.total || 0;
+        lastHitTs = d.last_hit_ts || null;
+        renderRanking();
+      } else if (d.type === 'interaction_update') {
+        rankings = d.rankings || [];
+        totalInteractions = d.total || 0;
+        lastHitTs = d.last_hit_ts || null;
+        renderRanking(d.character);
       }
     };
     ws.onerror = () => ws.close();
@@ -370,8 +381,44 @@
     } catch {}
   }
 
+  /* ── Ranking ── */
+  function renderRanking(flashCharId) {
+    const list = document.getElementById('rank-list');
+    const maxCount = rankings.length ? rankings[0].count : 1;
+
+    list.innerHTML = '';
+    rankings.forEach(r => {
+      const item = document.createElement('div');
+      item.className = 'rank-item' + (r.name === currentCharId ? ' active' : '');
+      if (r.name === flashCharId) item.classList.add('flash');
+
+      const posClass = r.rank === 1 ? 'gold' : r.rank === 2 ? 'silver' : r.rank === 3 ? 'bronze' : 'other';
+      const barPct = maxCount > 0 ? (r.count / maxCount * 100) : 0;
+
+      item.innerHTML = `
+        <div class="rank-pos ${posClass}">${r.rank}</div>
+        <div class="rank-name">${r.name}</div>
+        <div class="rank-bar-wrap"><div class="rank-bar" style="width:${barPct}%"></div></div>
+        <div class="rank-count">${r.count}次</div>
+      `;
+      list.appendChild(item);
+    });
+
+    document.getElementById('rank-total').textContent = `${totalInteractions} 次互动`;
+    document.getElementById('rank-chars').textContent = `角色总数: ${rankings.length}`;
+
+    const lastHitEl = document.getElementById('rank-last-hit');
+    if (lastHitTs) {
+      const ago = Math.round((Date.now() - new Date(lastHitTs).getTime()) / 1000);
+      lastHitEl.textContent = ago < 60 ? `${ago}s ago` : `${Math.round(ago / 60)}m ago`;
+    } else {
+      lastHitEl.textContent = '';
+    }
+  }
+
   /* ── Init ── */
   connectWS();
   syncUI();
   refreshList();
+  renderRanking();
 })();
