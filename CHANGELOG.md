@@ -2,6 +2,15 @@
 
 ## 2026-04-09
 
+- 新增握拳手势捕捉、互动排行榜、AIGC prompt 优化
+- 新增逐情绪生成进度展示 + 柯基鼠自定义角色
+- 新增互动排行榜 UI（左右分栏布局 + 实时更新）
+- 新增 TouchSensor 模块（MPR121 电容触摸检测）+ InteractionStore 持久化
+- 集成 Jimeng Seedream 5.0 AIGC，情绪精简为 3 种
+- 新增 Hackathon Pitch 大纲（6 分钟演讲结构 + Q&A 预案）
+- 修复 Eye App 资源缓存问题（cache-bust v8）
+- 修复自定义角色显示 AIGC PNG 而非照片纹理
+- 样式优化：情绪图片居中、去除破坏性滤镜、修复边缘裁切
 - 合并 Cube 3D IP / 多角色系统 / 摄像头面部检测 功能分支 (#1)
 
 ## 2026-04-08
