@@ -46,7 +46,7 @@ class MockAIGCService:
     """Mock AIGC — generates colored placeholder images with Pillow."""
 
     async def generate_emotions(
-        self, source_image: Path, output_dir: Path
+        self, source_image: Path, output_dir: Path, on_progress=None
     ) -> dict[str, str]:
         if not source_image.exists():
             raise FileNotFoundError(f"Source image not found: {source_image}")
@@ -180,7 +180,7 @@ class JimengAIGCService:
         raise last_err
 
     async def generate_emotions(
-        self, source_image: Path, output_dir: Path
+        self, source_image: Path, output_dir: Path, on_progress=None
     ) -> dict[str, str]:
         if not self.api_key and not (self.ak and self.sk):
             raise RuntimeError("ARK_API_KEY or VOLC_ACCESSKEY/VOLC_SECRETKEY not set")
@@ -198,34 +198,21 @@ class JimengAIGCService:
         client = self._create_client()
         loop = asyncio.get_event_loop()
 
-        # Run all 3 emotions concurrently via thread pool (SDK is sync)
-        tasks = [
-            loop.run_in_executor(
-                None, self._generate_one_sync, client, emotion, image_b64, output_dir
-            )
-            for emotion in EMOTIONS
-        ]
-        results_list = await asyncio.gather(*tasks, return_exceptions=True)
-
         results = {}
-        has_failures = False
-
-        for r in results_list:
-            if isinstance(r, Exception):
-                log.error(f"Jimeng API error: {r}")
-                has_failures = True
-            else:
-                emotion, path = r
-                results[emotion] = path
-
-        # Fall back to mock for any failed emotions
-        if has_failures:
-            missing = [e for e in EMOTIONS if e not in results]
-            if missing:
-                log.warning(f"Falling back to mock for: {missing}")
+        for i, emotion in enumerate(EMOTIONS):
+            if on_progress:
+                on_progress(i, len(EMOTIONS), emotion)
+            try:
+                emotion_name, path = await loop.run_in_executor(
+                    None, self._generate_one_sync, client, emotion, image_b64, output_dir
+                )
+                results[emotion_name] = path
+            except Exception as e:
+                log.error(f"Jimeng API error for {emotion}: {e}")
+                # Fall back to mock for this emotion
+                log.warning(f"Falling back to mock for: {emotion}")
                 mock_results = await MockAIGCService().generate_emotions(source_image, output_dir)
-                for e in missing:
-                    if e in mock_results:
-                        results[e] = mock_results[e]
+                if emotion in mock_results:
+                    results[emotion] = mock_results[emotion]
 
         return results

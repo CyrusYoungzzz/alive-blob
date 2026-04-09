@@ -34,11 +34,6 @@ from touch_sensor import create_touch_sensor
 
 BUILTIN_CHARS = {
     "cube": {"type": "3d", "name": "Cube", "avatar": None},
-    "keji-shu": {
-        "type": "image",
-        "name": "科技薯",
-        "avatar": "https://sns-avatar-qc.xhscdn.com/avatar/1040g2jo3154311m61e6g5pkcpsk0uc8t76cabeo?imageView2/2/w/540/format/webp",
-    },
 }
 
 

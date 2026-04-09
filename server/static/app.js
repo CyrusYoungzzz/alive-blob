@@ -12,8 +12,6 @@
   const BUILTIN = [
     { id: 'cube', name: 'Cube', desc: 'Alive Blob', type: '3d',
       avatar: null },
-    { id: 'keji-shu', name: '科技薯', desc: '电子狗有狗点子', type: 'image',
-      avatar: 'https://sns-avatar-qc.xhscdn.com/avatar/1040g2jo3154311m61e6g5pkcpsk0uc8t76cabeo?imageView2/2/w/540/format/webp' },
   ];
 
   let ws = null, currentCharId = 'cube', currentEmotion = 'calm';
@@ -463,11 +461,11 @@
     const selected = detectedFaces.filter(f => f.selected && f.name);
     if (!selected.length) return;
     btnAddFaces.disabled = true;
-    faceStatus.textContent = `创建中... 0/${selected.length}`;
+    faceStatus.textContent = `🎨 上传中... 0/${selected.length}`;
 
     for (let i = 0; i < selected.length; i++) {
       const f = selected[i];
-      faceStatus.textContent = `创建中... ${i + 1}/${selected.length}`;
+      faceStatus.textContent = `🎨 上传中... ${i + 1}/${selected.length}`;
       try {
         const blob = await new Promise(r => f.canvas.toBlob(r, 'image/jpeg', 0.9));
         const fd = new FormData();
@@ -508,13 +506,17 @@
 
   async function poll(name) {
     const s = Date.now();
-    while (Date.now() - s < 60000) {
+    while (Date.now() - s < 120000) {
       await new Promise(r => setTimeout(r, 1000));
       const r = await fetch(`${API}/api/characters/${name}`);
       if (!r.ok) continue;
       const d = await r.json();
       if (d.status === 'ready') return;
       if (d.status.startsWith('error')) throw new Error(d.status);
+      // Show generation progress
+      if (d.status.startsWith('generating')) {
+        faceStatus.textContent = `🎨 AI 绘制中... ${d.status.replace('generating ', '')}`;
+      }
     }
     throw new Error('超时');
   }

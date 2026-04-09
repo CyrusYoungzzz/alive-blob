@@ -100,8 +100,15 @@ async def create_character(
             service = JimengAIGCService()
         else:
             service = MockAIGCService()
+
+        emotion_labels = {"sleepy": "困", "comfortable": "舒服", "crying": "哭"}
+
+        def on_progress(i, total, emotion):
+            manifest["status"] = f"generating {i+1}/{total} {emotion_labels.get(emotion, emotion)}"
+            _write_manifest(char_dir, manifest)
+
         try:
-            results = await service.generate_emotions(source_path, char_dir)
+            results = await service.generate_emotions(source_path, char_dir, on_progress=on_progress)
             manifest["status"] = "ready"
             manifest["emotions"] = {e: f"{e}.png" for e in results}
             _write_manifest(char_dir, manifest)
