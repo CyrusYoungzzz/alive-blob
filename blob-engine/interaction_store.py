@@ -19,9 +19,12 @@ class InteractionStore:
 
     def _load(self):
         if self._path.exists():
-            data = json.loads(self._path.read_text())
-            self._counts = data.get("counts", {})
-            self.last_hit_ts = data.get("last_hit_ts")
+            try:
+                data = json.loads(self._path.read_text())
+                self._counts = data.get("counts", {})
+                self.last_hit_ts = data.get("last_hit_ts")
+            except (json.JSONDecodeError, KeyError):
+                pass  # Corrupt file — start fresh
 
     def increment(self, character: str) -> int:
         with self._lock:
@@ -34,11 +37,14 @@ class InteractionStore:
         return self._counts.get(character, 0)
 
     def get_total(self) -> int:
-        return sum(self._counts.values())
+        with self._lock:
+            return sum(self._counts.values())
 
     def get_rankings(self) -> list[dict]:
+        with self._lock:
+            snapshot = list(self._counts.items())
         sorted_items = sorted(
-            self._counts.items(),
+            snapshot,
             key=lambda x: (-x[1], x[0])
         )
         return [
