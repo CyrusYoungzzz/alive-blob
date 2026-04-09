@@ -4,23 +4,18 @@
   const ENGINE_WS = `ws://${location.hostname}:8000/ws/mobile`;
 
   const EMOTIONS = [
-    { id: 'calm',    emoji: '😌', label: '平静',  color: '#4A7BFF' },
-    { id: 'happy',   emoji: '😄', label: '开心',  color: '#E84593' },
-    { id: 'excited', emoji: '🤩', label: '兴奋',  color: '#FF6B2B' },
-    { id: 'curious', emoji: '🤔', label: '好奇',  color: '#2ECC87' },
-    { id: 'sleepy',  emoji: '😴', label: '困倦',  color: '#5C5C70' },
-    { id: 'shy',     emoji: '😳', label: '害羞',  color: '#FF9EB5' },
-    { id: 'grumpy',  emoji: '😤', label: '不爽',  color: '#C0392B' },
+    { id: 'sleepy',      emoji: '😴', label: '困',  color: '#5C5C70' },
+    { id: 'comfortable', emoji: '😊', label: '舒服', color: '#F5A623' },
+    { id: 'crying',      emoji: '😢', label: '哭',  color: '#4A90D9' },
   ];
 
   const BUILTIN = [
     { id: 'cube', name: 'Cube', desc: 'Alive Blob', type: '3d',
       avatar: null },
-    { id: 'keji-shu', name: '科技薯', desc: '电子狗有狗点子', type: 'image',
-      avatar: 'https://sns-avatar-qc.xhscdn.com/avatar/1040g2jo3154311m61e6g5pkcpsk0uc8t76cabeo?imageView2/2/w/540/format/webp' },
   ];
 
   let ws = null, currentCharId = 'cube', currentEmotion = 'calm';
+  let rankings = [], totalInteractions = 0, lastHitTs = null;
 
   /* ── Slider ── */
   const slider = document.getElementById('slider');
@@ -67,6 +62,16 @@
       if (d.type === 'state_sync') {
         if (d.character) currentCharId = d.character;
         if (d.emotion && d.emotion !== currentEmotion) { currentEmotion = d.emotion; syncUI(); }
+      } else if (d.type === 'interaction_init') {
+        rankings = d.rankings || [];
+        totalInteractions = d.total || 0;
+        lastHitTs = d.last_hit_ts || null;
+        renderRanking();
+      } else if (d.type === 'interaction_update') {
+        rankings = d.rankings || [];
+        totalInteractions = d.total || 0;
+        lastHitTs = d.last_hit_ts || null;
+        renderRanking(d.character);
       }
     };
     ws.onerror = () => ws.close();
@@ -118,6 +123,182 @@
   let camStream = null, detectLoop = null, faceModelReady = false;
   let detectedFaces = []; // {box, canvas}
 
+  /* ── Gesture Detection (MediaPipe Hands) ── */
+  const gestureHint = document.getElementById('gesture-hint');
+  let handsInstance = null, gestureState = 'IDLE'; // IDLE | OPEN | TRIGGER | COOLDOWN
+  let gestureOpenSince = 0, gestureFistSince = 0;
+  const GESTURE_HOLD_MS = 300, GESTURE_COOLDOWN_MS = 2000;
+
+  function isFingerExtended(landmarks, tipIdx, pipIdx) {
+    return landmarks[tipIdx].y < landmarks[pipIdx].y;
+  }
+
+  function classifyGesture(landmarks) {
+    const fingers = [
+      isFingerExtended(landmarks, 8, 6),   // index
+      isFingerExtended(landmarks, 12, 10), // middle
+      isFingerExtended(landmarks, 16, 14), // ring
+      isFingerExtended(landmarks, 20, 18), // pinky
+    ];
+    const extended = fingers.filter(Boolean).length;
+    if (extended >= 3) return 'open';
+    if (extended <= 1) return 'fist';
+    return 'other';
+  }
+
+  function updateGestureState(gesture) {
+    const now = Date.now();
+    switch (gestureState) {
+      case 'IDLE':
+        if (gesture === 'open') {
+          if (!gestureOpenSince) gestureOpenSince = now;
+          if (now - gestureOpenSince >= GESTURE_HOLD_MS) {
+            gestureState = 'OPEN';
+            gestureFistSince = 0;
+          }
+        } else {
+          gestureOpenSince = 0;
+        }
+        break;
+      case 'OPEN':
+        if (gesture === 'fist') {
+          if (!gestureFistSince) gestureFistSince = now;
+          if (now - gestureFistSince >= GESTURE_HOLD_MS) {
+            gestureState = 'TRIGGER';
+            triggerGestureCapture();
+          }
+        } else if (gesture === 'open') {
+          gestureFistSince = 0;
+        } else {
+          gestureState = 'IDLE';
+          gestureOpenSince = 0;
+          gestureFistSince = 0;
+        }
+        break;
+    }
+    updateGestureHint();
+  }
+
+  function updateGestureHint() {
+    gestureHint.className = 'gesture-hint';
+    switch (gestureState) {
+      case 'IDLE':
+        gestureHint.classList.add('idle');
+        gestureHint.textContent = '\u2728 \u4f38\u5f00\u624b\u638c\uff0c\u63e1\u62f3\u62cd\u7167';
+        break;
+      case 'OPEN':
+        gestureHint.classList.add('open');
+        gestureHint.textContent = '\u270a \u4fdd\u6301... \u63e1\u62f3\u62cd\u7167\uff01';
+        break;
+      case 'TRIGGER':
+      case 'COOLDOWN':
+        gestureHint.classList.add('trigger');
+        gestureHint.textContent = '\u{1f4f8} \u62cd\u6444\u4e2d...';
+        break;
+    }
+  }
+
+  function triggerGestureCapture() {
+    if (camStep.style.display === 'none') return;
+    gestureState = 'COOLDOWN';
+    updateGestureHint();
+    captureAndDetect();
+    setTimeout(() => {
+      gestureState = 'IDLE';
+      gestureOpenSince = 0;
+      gestureFistSince = 0;
+      updateGestureHint();
+    }, GESTURE_COOLDOWN_MS);
+  }
+
+  function drawHandLandmarks(landmarks) {
+    const w = overlay.width, h = overlay.height;
+    const connections = [
+      [0,1],[1,2],[2,3],[3,4],
+      [0,5],[5,6],[6,7],[7,8],
+      [0,9],[9,10],[10,11],[11,12],
+      [0,13],[13,14],[14,15],[15,16],
+      [0,17],[17,18],[18,19],[19,20],
+      [5,9],[9,13],[13,17],
+    ];
+    octx.strokeStyle = 'rgba(0,255,128,0.5)';
+    octx.lineWidth = 1.5;
+    connections.forEach(([a, b]) => {
+      octx.beginPath();
+      octx.moveTo((1 - landmarks[a].x) * w, landmarks[a].y * h);
+      octx.lineTo((1 - landmarks[b].x) * w, landmarks[b].y * h);
+      octx.stroke();
+    });
+    octx.fillStyle = 'rgba(0,255,128,0.8)';
+    [4,8,12,16,20].forEach(i => {
+      octx.beginPath();
+      octx.arc((1 - landmarks[i].x) * w, landmarks[i].y * h, 3, 0, Math.PI * 2);
+      octx.fill();
+    });
+  }
+
+  async function initGesture() {
+    if (handsInstance) return; // already initialized
+    if (!window.Hands) {
+      console.warn('MediaPipe Hands not loaded, gesture disabled');
+      return;
+    }
+    try {
+      handsInstance = new Hands({
+        locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      });
+      handsInstance.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 0,
+        minDetectionConfidence: 0.6,
+        minTrackingConfidence: 0.5
+      });
+      handsInstance.onResults(results => {
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+          const lm = results.multiHandLandmarks[0];
+          const gesture = classifyGesture(lm);
+          updateGestureState(gesture);
+          if (camStep.style.display !== 'none') drawHandLandmarks(lm);
+        } else {
+          if (gestureState !== 'COOLDOWN' && gestureState !== 'TRIGGER') {
+            gestureState = 'IDLE';
+            gestureOpenSince = 0;
+            gestureFistSince = 0;
+            updateGestureHint();
+          }
+        }
+      });
+      gestureHint.classList.add('idle');
+      gestureHint.textContent = '\u2728 \u4f38\u5f00\u624b\u638c\uff0c\u63e1\u62f3\u62cd\u7167';
+    } catch (e) {
+      console.warn('Gesture init failed:', e);
+    }
+  }
+
+  let gestureLoop = null;
+  function startGestureLoop() {
+    if (!handsInstance || !camStream) return;
+    let sending = false;
+    async function tick() {
+      if (!camStream || !handsInstance) return;
+      if (!sending && video.readyState >= 2) {
+        sending = true;
+        try { await handsInstance.send({ image: video }); } catch {}
+        sending = false;
+      }
+      gestureLoop = requestAnimationFrame(tick);
+    }
+    tick();
+  }
+
+  function stopGestureLoop() {
+    if (gestureLoop) { cancelAnimationFrame(gestureLoop); gestureLoop = null; }
+    gestureState = 'IDLE';
+    gestureOpenSince = 0;
+    gestureFistSince = 0;
+    gestureHint.className = 'gesture-hint';
+  }
+
   // load face-api model (once)
   let modelLoading = false;
   async function loadFaceModel() {
@@ -126,7 +307,7 @@
     try {
       await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
       faceModelReady = true;
-      camHint.textContent = '对准人脸，按 Space 拍摄';
+      camHint.textContent = '对准人脸，握拳或按 Space 拍摄';
       btnShutter.disabled = false;
     } catch (e) {
       camHint.textContent = '模型加载失败: ' + e.message;
@@ -144,6 +325,7 @@
       overlay.width = video.videoWidth;
       overlay.height = video.videoHeight;
       startDetectLoop();
+      initGesture().then(() => startGestureLoop());
     } catch (e) {
       camHint.textContent = '无法访问摄像头: ' + e.message;
     }
@@ -151,6 +333,7 @@
 
   function stopCamera() {
     if (detectLoop) { cancelAnimationFrame(detectLoop); detectLoop = null; }
+    stopGestureLoop();
     if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
   }
 
@@ -251,6 +434,11 @@
       });
       faceGrid.appendChild(card);
     });
+    // auto-focus name input when single face detected
+    if (detectedFaces.length === 1) {
+      const input = faceGrid.querySelector('.face-name');
+      if (input) setTimeout(() => input.focus(), 100);
+    }
     checkAddBtn();
   }
 
@@ -273,11 +461,11 @@
     const selected = detectedFaces.filter(f => f.selected && f.name);
     if (!selected.length) return;
     btnAddFaces.disabled = true;
-    faceStatus.textContent = `创建中... 0/${selected.length}`;
+    faceStatus.textContent = `🎨 上传中... 0/${selected.length}`;
 
     for (let i = 0; i < selected.length; i++) {
       const f = selected[i];
-      faceStatus.textContent = `创建中... ${i + 1}/${selected.length}`;
+      faceStatus.textContent = `🎨 上传中... ${i + 1}/${selected.length}`;
       try {
         const blob = await new Promise(r => f.canvas.toBlob(r, 'image/jpeg', 0.9));
         const fd = new FormData();
@@ -318,13 +506,17 @@
 
   async function poll(name) {
     const s = Date.now();
-    while (Date.now() - s < 60000) {
+    while (Date.now() - s < 120000) {
       await new Promise(r => setTimeout(r, 1000));
       const r = await fetch(`${API}/api/characters/${name}`);
       if (!r.ok) continue;
       const d = await r.json();
       if (d.status === 'ready') return;
       if (d.status.startsWith('error')) throw new Error(d.status);
+      // Show generation progress
+      if (d.status.startsWith('generating')) {
+        faceStatus.textContent = `🎨 AI 绘制中... ${d.status.replace('generating ', '')}`;
+      }
     }
     throw new Error('超时');
   }
@@ -341,7 +533,8 @@
       d.innerHTML = `<div class="citem-av">${av}</div>
         <div class="citem-info"><div class="n">${b.name}</div><div class="m">${b.desc} · 内置</div></div>
         <div class="citem-acts"><button class="use" title="使用">&#9654;</button></div>`;
-      d.querySelector('.use').onclick = () => { switchChar(b.id); goPage(1); };
+      d.style.cursor = 'pointer';
+      d.onclick = () => { switchChar(b.id); goPage(1); };
       el.appendChild(d);
     });
   }
@@ -360,18 +553,55 @@
         d.innerHTML = `<div class="citem-av"><img class="citem-av-img" src="${thumb}" alt="" onerror="this.style.display='none';this.parentNode.innerHTML='<span>${(c.display_name||c.name)[0].toUpperCase()}</span>'"></div>
           <div class="citem-info"><div class="n">${c.display_name||c.name}</div><div class="m">${c.emotions_ready}/${c.emotions_total} · ${c.status}</div></div>
           <div class="citem-acts"><button class="use" title="使用">&#9654;</button><button class="del" title="删除">&times;</button></div>`;
-        d.querySelector('.use').onclick = () => {
+        d.style.cursor = 'pointer';
+        d.onclick = () => {
           switchChar(c.name, { name: c.display_name || c.name, desc: `${c.emotions_ready}/${c.emotions_total} emotions`, avatar: thumb });
           goPage(1);
         };
-        d.querySelector('.del').onclick = async () => { if(!confirm('删除 '+c.name+'？')) return; await fetch(`${API}/api/characters/${c.name}`,{method:'DELETE'}); refreshList(); };
+        d.querySelector('.del').onclick = (e) => { e.stopPropagation(); if(!confirm('删除 '+c.name+'？')) return; fetch(`${API}/api/characters/${c.name}`,{method:'DELETE'}).then(() => refreshList()); };
         el.appendChild(d);
       });
     } catch {}
+  }
+
+  /* ── Ranking ── */
+  function renderRanking(flashCharId) {
+    const list = document.getElementById('rank-list');
+    const maxCount = rankings.length ? rankings[0].count : 1;
+
+    list.innerHTML = '';
+    rankings.forEach(r => {
+      const item = document.createElement('div');
+      item.className = 'rank-item' + (r.name === currentCharId ? ' active' : '');
+      if (r.name === flashCharId) item.classList.add('flash');
+
+      const posClass = r.rank === 1 ? 'gold' : r.rank === 2 ? 'silver' : r.rank === 3 ? 'bronze' : 'other';
+      const barPct = maxCount > 0 ? (r.count / maxCount * 100) : 0;
+
+      item.innerHTML = `
+        <div class="rank-pos ${posClass}">${r.rank}</div>
+        <div class="rank-name">${r.name}</div>
+        <div class="rank-bar-wrap"><div class="rank-bar" style="width:${barPct}%"></div></div>
+        <div class="rank-count">${r.count}次</div>
+      `;
+      list.appendChild(item);
+    });
+
+    document.getElementById('rank-total').textContent = `${totalInteractions} 次互动`;
+    document.getElementById('rank-chars').textContent = `角色总数: ${rankings.length}`;
+
+    const lastHitEl = document.getElementById('rank-last-hit');
+    if (lastHitTs) {
+      const ago = Math.round((Date.now() - new Date(lastHitTs).getTime()) / 1000);
+      lastHitEl.textContent = ago < 60 ? `${ago}s ago` : `${Math.round(ago / 60)}m ago`;
+    } else {
+      lastHitEl.textContent = '';
+    }
   }
 
   /* ── Init ── */
   connectWS();
   syncUI();
   refreshList();
+  renderRanking();
 })();

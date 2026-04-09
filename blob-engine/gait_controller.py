@@ -36,15 +36,58 @@ log = logging.getLogger("gait")
 # ─── GPIO 抽象层 ───
 # Pi 上用 RPi.GPIO，其他平台用 Mock
 
+import shutil
+import subprocess
+
+# Detect GPIO backend: RPi.GPIO > pinctrl > mock
+_ON_PI = False
+_USE_PINCTRL = False
+
 try:
     import RPi.GPIO as _GPIO
     _GPIO.setmode(_GPIO.BCM)
     _GPIO.setwarnings(False)
     _ON_PI = True
-    log.info("Running on Raspberry Pi — real GPIO enabled")
+    log.info("Running on Raspberry Pi — real GPIO via RPi.GPIO")
 except (ImportError, RuntimeError):
-    _ON_PI = False
-    log.info("Not on Pi — using mock GPIO (log only)")
+    if shutil.which("pinctrl"):
+        _ON_PI = True
+        _USE_PINCTRL = True
+        log.info("Running on Raspberry Pi — real GPIO via pinctrl")
+    else:
+        log.info("Not on Pi — using mock GPIO (log only)")
+
+
+class _PinctrlGPIO:
+    """GPIO backend using Pi's pinctrl command."""
+    BCM = 11
+    OUT = 0
+    HIGH = 1
+    LOW = 0
+
+    @staticmethod
+    def setmode(mode): pass
+
+    @staticmethod
+    def setwarnings(flag): pass
+
+    @staticmethod
+    def setup(pin, mode):
+        subprocess.run(["sudo", "pinctrl", "set", str(pin), "op", "dl"],
+                       capture_output=True)
+
+    @staticmethod
+    def output(pin, value):
+        level = "dh" if value else "dl"
+        subprocess.run(["sudo", "pinctrl", "set", str(pin), "op", level],
+                       capture_output=True)
+
+    @staticmethod
+    def cleanup():
+        for pin in (GPIO_PUMP, GPIO_VALVE_LEFT, GPIO_VALVE_RIGHT):
+            subprocess.run(["sudo", "pinctrl", "set", str(pin), "op", "dl"],
+                           capture_output=True)
+        log.info("[pinctrl] cleanup — all pins LOW")
 
 
 class _MockGPIO:
@@ -66,14 +109,19 @@ class _MockGPIO:
     @staticmethod
     def output(pin, value):
         state = "ON" if value else "OFF"
-        log.debug(f"[MockGPIO] pin {pin} → {state}")
+        log.debug(f"[MockGPIO] pin {pin} �� {state}")
 
     @staticmethod
     def cleanup():
         log.info("[MockGPIO] cleanup")
 
 
-GPIO = _GPIO if _ON_PI else _MockGPIO()
+if _ON_PI and not _USE_PINCTRL:
+    GPIO = _GPIO
+elif _USE_PINCTRL:
+    GPIO = _PinctrlGPIO()
+else:
+    GPIO = _MockGPIO()
 
 
 class GaitController:
@@ -85,7 +133,7 @@ class GaitController:
         self._pump_cooldown_until = 0.0
         self._left_open = False
         self._right_open = False
-        self._current_emotion = "calm"
+        self._current_emotion = "sleepy"
         self._intensity = 0.7
         self._running = False
         self._gait_task = None
@@ -241,7 +289,7 @@ class GaitController:
         step_count = 0
 
         while self._running:
-            params = GAIT_PARAMS.get(self._current_emotion, GAIT_PARAMS["calm"])
+            params = GAIT_PARAMS.get(self._current_emotion, GAIT_PARAMS["sleepy"])
             step_ms = params["step_ms"]
             duty = params["duty"] * self._intensity
             pattern = params["pattern"]

@@ -13,7 +13,7 @@
   <div id="viewport">
     <div id="slider">
 
-      <!-- Page 1: 角色展示 -->
+      <!-- Page 1: 角色展示 + 排行榜 -->
       <div class="slide" id="slide-char">
         <div class="slide-inner">
 
@@ -25,15 +25,37 @@
             <div id="conn-dot"></div>
           </div>
 
-          <div class="avatar-wrap">
-            <div class="avatar-glow" id="avatar-glow"></div>
-            <iframe id="eye-preview" src="/eye-app/" frameborder="0" scrolling="no" allowtransparency="true"></iframe>
-          </div>
+          <div class="main-split">
+            <!-- Left: Animation + Emotion Controls -->
+            <div class="split-left">
+              <div class="avatar-wrap">
+                <div class="avatar-glow" id="avatar-glow"></div>
+                <iframe id="eye-preview" src="/eye-app/" frameborder="0" scrolling="no" allowtransparency="true"></iframe>
+              </div>
 
-          <div class="emotion-name" id="emotion-name">calm</div>
+              <div class="emotion-name" id="emotion-name">calm</div>
 
-          <div class="chips-wrap">
-            <div class="chips" id="chips"></div>
+              <div class="chips-wrap">
+                <div class="chips" id="chips"></div>
+              </div>
+            </div>
+
+            <!-- Right: Ranking Leaderboard -->
+            <div class="split-right">
+              <div class="rank-panel">
+                <div class="rank-header">
+                  <span class="rank-title">排行榜</span>
+                  <span class="rank-total" id="rank-total">0 次互动</span>
+                </div>
+                <div class="rank-list" id="rank-list">
+                  <!-- Populated by JS -->
+                </div>
+                <div class="rank-footer">
+                  <span class="rank-chars" id="rank-chars">角色总数: 0</span>
+                  <span class="rank-last-hit" id="rank-last-hit"></span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="dots">
@@ -51,35 +73,43 @@
             <div class="title small">添加角色</div>
           </div>
 
-          <!-- Step 1: Camera -->
-          <div id="cam-step" class="cam-section">
-            <div class="cam-box">
-              <video id="cam-video" autoplay playsinline muted></video>
-              <canvas id="cam-overlay"></canvas>
-              <div class="cam-hint" id="cam-hint">加载人脸检测模型...</div>
-            </div>
-            <div class="cam-controls">
-              <button class="btn-shutter" id="btn-shutter" disabled>
-                <span class="shutter-ring"></span>
-              </button>
-              <div class="cam-tip">按 <kbd>Space</kbd> 或点击快门拍摄</div>
-            </div>
-          </div>
+          <div class="add-layout">
+            <!-- Left: Camera + Face selection -->
+            <div class="add-left">
+              <!-- Step 1: Camera -->
+              <div id="cam-step" class="cam-section">
+                <div class="cam-box">
+                  <video id="cam-video" autoplay playsinline muted></video>
+                  <canvas id="cam-overlay"></canvas>
+                  <div class="cam-hint" id="cam-hint">加载人脸检测模型...</div>
+                </div>
+                <div class="cam-controls">
+                  <button class="btn-shutter" id="btn-shutter" disabled>
+                    <span class="shutter-ring"></span>
+                  </button>
+                  <div class="cam-tip">按 <kbd>Space</kbd> 或点击快门拍摄</div>
+                </div>
+              </div>
 
-          <!-- Step 2: Face selection -->
-          <div id="face-step" class="face-section" style="display:none">
-            <div class="face-header">
-              <span>检测到 <b id="face-count">0</b> 张人脸，勾选要添加的：</span>
-              <button class="btn-small" id="btn-retake">重拍</button>
+              <!-- Step 2: Face selection -->
+              <div id="face-step" class="face-section" style="display:none">
+                <div class="face-header">
+                  <span>检测到 <b id="face-count">0</b> 张人脸，勾选要添加的：</span>
+                  <button class="btn-small" id="btn-retake">重拍</button>
+                </div>
+                <div class="face-grid" id="face-grid"></div>
+                <button class="btn-primary" id="btn-add-faces" disabled>添加选中的人脸</button>
+                <div class="status-text" id="face-status"></div>
+              </div>
             </div>
-            <div class="face-grid" id="face-grid"></div>
-            <button class="btn-primary" id="btn-add-faces" disabled>添加选中的人脸</button>
-            <div class="status-text" id="face-status"></div>
-          </div>
 
-          <div class="list-section">
-            <div class="list-title">已有角色</div>
-            <div id="char-list"></div>
+            <!-- Right: Character list -->
+            <div class="add-right">
+              <div class="list-section">
+                <div class="list-title">已有角色</div>
+                <div id="char-list"></div>
+              </div>
+            </div>
           </div>
 
           <div class="dots">

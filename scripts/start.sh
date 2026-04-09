@@ -11,6 +11,13 @@ if [ -f .venv/bin/activate ]; then
   source .venv/bin/activate
 fi
 
+# Load .env if exists (API keys etc.)
+if [ -f .env ]; then
+  set -a
+  source .env
+  set +a
+fi
+
 # Ensure characters dir exists
 mkdir -p characters
 
@@ -43,10 +50,11 @@ sleep 1
 echo "  ✅ Engine ready"
 
 # 3. Eye App (kiosk mode on Pi only)
-if command -v chromium-browser &> /dev/null; then
+CHROMIUM_BIN=$(command -v chromium-browser 2>/dev/null || command -v chromium 2>/dev/null || true)
+if [ -n "$CHROMIUM_BIN" ]; then
   echo "[3/3] Starting Eye App in kiosk mode..."
-  chromium-browser --kiosk --disable-infobars --noerrdialogs \
-    --enable-features=VaapiVideoDecoder --use-gl=egl \
+  DISPLAY=:0 "$CHROMIUM_BIN" --kiosk --disable-infobars --noerrdialogs \
+    --password-store=basic \
     "http://localhost:8080/eye-app/" &
   EYE_PID=$!
 else
