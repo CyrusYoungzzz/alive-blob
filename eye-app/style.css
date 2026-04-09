@@ -13,7 +13,7 @@ html, body {
   height: 480px;
   border-radius: 50%;
   overflow: hidden;
-  background: radial-gradient(circle at center, #0a0a0f 0%, #000000 100%);
+  background: #ffffff;
 }
 
 /* ─── 3D Cube layer ─── */
@@ -29,9 +29,9 @@ html, body {
   position: absolute;
   top: 0; left: 0;
   width: 100%; height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: none;
-  transition: filter 0.8s ease, transform 0.8s ease;
+  transition: transform 0.8s ease;
 }
 .face-img.active { display: block; }
 
@@ -56,38 +56,35 @@ html, body {
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    Image character — emotion effects
+   即梦已生成完美配色，不叠滤镜，只做微妙动画
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-/* Sleepy — dim blur, slow droop */
+/* Sleepy — gentle slow breathing, stays centered */
 #screen.emo-sleepy .face-img {
-  filter: brightness(0.55) saturate(0.35) blur(2px) hue-rotate(200deg);
-  animation: sleepy-droop 3.5s ease-in-out infinite;
+  animation: sleepy-breathe 4s ease-in-out infinite;
 }
-@keyframes sleepy-droop {
-  0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
-  40%      { transform: translateY(8px) rotate(-4deg) scale(0.98); }
-  80%      { transform: translateY(15px) rotate(-7deg) scale(0.96); }
+@keyframes sleepy-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(0.97); }
 }
 
-/* Comfortable — warm glow, gentle breathing */
+/* Comfortable — warm soft pulse, stays centered */
 #screen.emo-comfortable .face-img {
-  filter: brightness(1.15) saturate(1.3) sepia(0.1) hue-rotate(-10deg);
-  animation: comfortable-breathe 3s ease-in-out infinite;
+  animation: comfortable-pulse 2.5s ease-in-out infinite;
 }
-@keyframes comfortable-breathe {
-  0%, 100% { transform: scale(1) rotate(0deg); }
-  50%      { transform: scale(1.04) rotate(1deg); }
+@keyframes comfortable-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.03); }
 }
 
-/* Crying — blue tint, tremble */
+/* Crying — subtle shake, stays centered */
 #screen.emo-crying .face-img {
-  filter: brightness(0.7) saturate(0.8) hue-rotate(200deg) contrast(1.1);
-  animation: crying-tremble 0.15s ease-in-out infinite;
+  animation: crying-shake 0.3s ease-in-out infinite;
 }
-@keyframes crying-tremble {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  25%      { transform: translateY(-2px) rotate(-1deg); }
-  75%      { transform: translateY(2px) rotate(1deg); }
+@keyframes crying-shake {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-2px); }
+  75%      { transform: translateX(2px); }
 }
 
 /* Hide face placeholder when no src */
