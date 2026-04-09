@@ -14,7 +14,7 @@
   let currentMode = '3d';   // '3d' | 'image'
   let currentEmotion = 'sleepy';
   let cubeReady = false;
-  let isCustomTexture = false;
+  let isCustomChar = false;
 
   function initCube() {
     CubeCharacter.init(container);
@@ -28,7 +28,6 @@
       face.classList.remove('active');
       if (!cubeReady) initCube();
       CubeCharacter.setEmotion(currentEmotion);
-      // Particles are managed by caller (on for custom, off for pure 3d)
     } else {
       container.style.display = 'none';
       face.classList.add('active');
@@ -39,16 +38,19 @@
   }
 
   function applyImageEmotion(emotion) {
-    // remove old emo-* classes, add new
     screen.className = screen.className.replace(/\bemo-\w+/g, '').trim();
     screen.classList.add(`emo-${emotion}`);
   }
 
-  function setEmotion(emotion) {
+  function setEmotion(emotion, imagePath) {
     currentEmotion = emotion;
-    if (currentMode === '3d') {
+    if (isCustomChar && imagePath) {
+      // Custom character: show AIGC-generated emotion PNG
+      const url = imagePath.startsWith('http') ? imagePath : SERVER_BASE + imagePath;
+      face.src = url;
+      showMode('image');
+    } else if (currentMode === '3d') {
       CubeCharacter.setEmotion(emotion);
-      if (isCustomTexture) Particles.setEmotion(emotion);
     } else {
       applyImageEmotion(emotion);
       Particles.setEmotion(emotion);
@@ -60,25 +62,18 @@
     if (data.type === 'set_face') {
       const charType = data.char_type || 'custom';
       if (charType === '3d') {
-        isCustomTexture = false;
+        isCustomChar = false;
         CubeCharacter.clearTexture();
         CubeCharacter.showFace(true);
         Particles.stop();
         showMode('3d');
       } else if (charType === 'custom') {
-        // Custom character: photo texture on 3D blob
-        isCustomTexture = true;
-        const url = data.image_url
-          ? (data.image_url.startsWith('http') ? data.image_url : SERVER_BASE + data.image_url)
-          : '';
-        if (url) {
-          CubeCharacter.setTexture(url);
-          CubeCharacter.showFace(false);
-        }
-        showMode('3d');
-        Particles.start();
+        // Custom character: show AIGC emotion images in 2D mode
+        isCustomChar = true;
+        showMode('image');
       } else {
         // Built-in image character: 2D mode
+        isCustomChar = false;
         const url = data.avatar || (data.image_url
           ? (data.image_url.startsWith('http') ? data.image_url : SERVER_BASE + data.image_url)
           : '');
@@ -86,7 +81,7 @@
         showMode('image');
       }
     } else if (data.type === 'play_emotion') {
-      setEmotion(data.emotion);
+      setEmotion(data.emotion, data.image_path);
     }
   };
 
