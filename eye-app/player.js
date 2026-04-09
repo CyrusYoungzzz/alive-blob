@@ -31,8 +31,13 @@
     } else {
       container.style.display = 'none';
       face.classList.add('active');
-      Particles.start();
-      Particles.setEmotion(currentEmotion);
+      // Only show particles for built-in image chars, not AIGC custom chars
+      if (isCustomChar) {
+        Particles.stop();
+      } else {
+        Particles.start();
+        Particles.setEmotion(currentEmotion);
+      }
       applyImageEmotion(currentEmotion);
     }
   }
