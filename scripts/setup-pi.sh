@@ -17,9 +17,9 @@ echo "[1/6] 安装系统依赖..."
 sudo apt-get update -qq
 sudo apt-get install -y -qq \
   python3-venv python3-pip python3-dev \
-  chromium-browser \
+  chromium \
   i2c-tools \
-  libopenjp2-7 libtiff5 libatlas-base-dev \
+  libopenjp2-7 libtiff6 libatlas3-base \
   curl git
 
 # ─── 2. 启用 I2C（MPR121 触摸传感器需要）───

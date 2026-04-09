@@ -46,7 +46,7 @@ class BlobEngine:
         self.current_emotion = "sleepy"
         self.current_character = None
         self._running = False
-        self._intensity = 0.7
+        self._intensity = 0.0
         self.gait = GaitController() if (_HAS_GAIT and enable_gait) else None
         self._store = InteractionStore(Path("data/interactions.json"))
         self._touch = create_touch_sensor(self._on_touch_hit)
@@ -59,9 +59,9 @@ class BlobEngine:
                     self.current_character = d.name
                     break
 
-        # 启动步态控制器
-        if self.gait:
-            await self.gait.start()
+        # 步态控制器由 whip-test.py 独立控制，Engine 不自动启动
+        # if self.gait:
+        #     await self.gait.start()
 
         self._loop = asyncio.get_running_loop()
         self._touch.start()
@@ -124,11 +124,19 @@ class BlobEngine:
     async def _handle_mobile_message(self, data: dict):
         msg_type = data.get("type")
         if msg_type == "set_emotion":
-            self.current_emotion = data["emotion"]
+            new_emotion = data["emotion"]
+            old_emotion = self.current_emotion
+            self.current_emotion = new_emotion
             log.info(f"Emotion → {self.current_emotion}")
             if self.gait:
                 self.gait.set_emotion(self.current_emotion)
             await self._send_play_emotion()
+            # 只在表情真正改变且不是恢复默认时才计数
+            char = self.current_character
+            if char and new_emotion != old_emotion and new_emotion != "sleepy":
+                count = self._store.increment(char)
+                log.info("Interaction via set_emotion: '%s' → %d total", char, count)
+                await self._broadcast_interaction(char, count)
         elif msg_type == "set_intensity":
             self._intensity = max(0.0, min(1.0, data.get("value", 0.7)))
             if self.gait:

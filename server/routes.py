@@ -127,4 +127,8 @@ async def delete_character(name: str, request: Request):
     if not char_dir.exists():
         raise HTTPException(404, f"Character '{name}' not found")
     shutil.rmtree(char_dir)
+    # 清理排行榜中该角色的互动数据
+    store = request.app.state.interaction_store
+    store.delete(name)
+    store.flush()
     return {"deleted": name}

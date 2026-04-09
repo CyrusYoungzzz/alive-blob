@@ -52,6 +52,13 @@ class InteractionStore:
             for i, (name, count) in enumerate(sorted_items)
         ]
 
+    def delete(self, character: str):
+        """删除某角色的互动数据。"""
+        with self._lock:
+            if character in self._counts:
+                del self._counts[character]
+                self._dirty = True
+
     def flush(self):
         """Write to disk if dirty."""
         with self._lock:

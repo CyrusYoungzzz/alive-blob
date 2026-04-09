@@ -319,6 +319,9 @@
   async function startCamera() {
     if (camStream) return;
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('需要 HTTPS 才能访问摄像头。请用 https:// 或 localhost 访问');
+      }
       camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
       video.srcObject = camStream;
       await video.play();
@@ -551,11 +554,11 @@
         d.className = 'citem' + (c.name === currentCharId ? ' cur' : '');
         const thumb = `/characters/${c.name}/source.jpg`;
         d.innerHTML = `<div class="citem-av"><img class="citem-av-img" src="${thumb}" alt="" onerror="this.style.display='none';this.parentNode.innerHTML='<span>${(c.display_name||c.name)[0].toUpperCase()}</span>'"></div>
-          <div class="citem-info"><div class="n">${c.display_name||c.name}</div><div class="m">${c.emotions_ready}/${c.emotions_total} · ${c.status}</div></div>
+          <div class="citem-info"><div class="n">${c.display_name||c.name}</div><div class="m">${c.status}</div></div>
           <div class="citem-acts"><button class="use" title="使用">&#9654;</button><button class="del" title="删除">&times;</button></div>`;
         d.style.cursor = 'pointer';
         d.onclick = () => {
-          switchChar(c.name, { name: c.display_name || c.name, desc: `${c.emotions_ready}/${c.emotions_total} emotions`, avatar: thumb });
+          switchChar(c.name, { name: c.display_name || c.name, desc: '', avatar: thumb });
           goPage(1);
         };
         d.querySelector('.del').onclick = (e) => { e.stopPropagation(); if(!confirm('删除 '+c.name+'？')) return; fetch(`${API}/api/characters/${c.name}`,{method:'DELETE'}).then(() => refreshList()); };
@@ -565,6 +568,16 @@
   }
 
   /* ── Ranking ── */
+  let charDisplayNames = {}; // name -> display_name mapping
+
+  async function loadCharDisplayNames() {
+    try {
+      const r = await fetch(`${API}/api/characters`);
+      const chars = await r.json();
+      chars.forEach(c => { charDisplayNames[c.name] = c.display_name || c.name; });
+    } catch {}
+  }
+
   function renderRanking(flashCharId) {
     const list = document.getElementById('rank-list');
     const maxCount = rankings.length ? rankings[0].count : 1;
@@ -577,10 +590,11 @@
 
       const posClass = r.rank === 1 ? 'gold' : r.rank === 2 ? 'silver' : r.rank === 3 ? 'bronze' : 'other';
       const barPct = maxCount > 0 ? (r.count / maxCount * 100) : 0;
+      const displayName = charDisplayNames[r.name] || r.name;
 
       item.innerHTML = `
         <div class="rank-pos ${posClass}">${r.rank}</div>
-        <div class="rank-name">${r.name}</div>
+        <div class="rank-name">${displayName}</div>
         <div class="rank-bar-wrap"><div class="rank-bar" style="width:${barPct}%"></div></div>
         <div class="rank-count">${r.count}次</div>
       `;
@@ -602,6 +616,7 @@
   /* ── Init ── */
   connectWS();
   syncUI();
+  loadCharDisplayNames();
   refreshList();
   renderRanking();
 })();

@@ -15,6 +15,11 @@ def create_app(characters_dir: Optional[Path] = None) -> FastAPI:
     app = FastAPI(title="Alive Blob Server")
     app.state.characters_dir = characters_dir
 
+    # Interaction store (shared with Engine via same file)
+    from blob_engine.interaction_store import InteractionStore
+    data_path = Path(__file__).parent.parent / "data" / "interactions.json"
+    app.state.interaction_store = InteractionStore(data_path)
+
     from server.routes import router
     app.include_router(router, prefix="/api")
 

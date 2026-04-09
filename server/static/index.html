@@ -8,6 +8,7 @@
 </head>
 <body>
   <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
   <!-- 视口裁切 -->
   <div id="viewport">
@@ -82,12 +83,13 @@
                   <video id="cam-video" autoplay playsinline muted></video>
                   <canvas id="cam-overlay"></canvas>
                   <div class="cam-hint" id="cam-hint">加载人脸检测模型...</div>
+                  <div class="gesture-hint" id="gesture-hint"></div>
                 </div>
                 <div class="cam-controls">
                   <button class="btn-shutter" id="btn-shutter" disabled>
                     <span class="shutter-ring"></span>
                   </button>
-                  <div class="cam-tip">按 <kbd>Space</kbd> 或点击快门拍摄</div>
+                  <div class="cam-tip">握拳拍摄 · <kbd>Space</kbd> 或点击快门</div>
                 </div>
               </div>
 
