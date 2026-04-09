@@ -48,7 +48,7 @@ class BlobEngine:
         self.characters_dir = Path(characters_dir)
         self.eye_clients: set = set()
         self.mobile_clients: set = set()
-        self.current_emotion = "calm"
+        self.current_emotion = "sleepy"
         self.current_character = None
         self._running = False
         self._intensity = 0.7

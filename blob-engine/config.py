@@ -2,10 +2,10 @@
 
 WS_PORT = 8000
 DEFAULT_CHARACTER = "default"
-DEFAULT_EMOTION = "calm"
+DEFAULT_EMOTION = "sleepy"
 STATE_SYNC_INTERVAL_MS = 500
 
-EMOTIONS = ["calm", "happy", "excited", "curious", "sleepy", "shy", "grumpy"]
+EMOTIONS = ["sleepy", "comfortable", "crying"]
 
 # ─── GPIO 引脚 ───
 GPIO_PUMP = 18       # 继电器 IN1 → 气泵
@@ -25,13 +25,9 @@ PUMP_BLEED_MS = 100         # 启泵前泄压等待时间
 # duty: 充气占空比（0.8=猛烈, 0.3=轻柔）
 # pattern: 步态模式
 GAIT_PARAMS = {
-    "calm":    {"step_ms": 2000, "duty": 0.5, "pattern": "steady"},
-    "happy":   {"step_ms": 500,  "duty": 0.5, "pattern": "steady"},
-    "excited": {"step_ms": 200,  "duty": 0.5, "pattern": "steady"},
-    "sleepy":  {"step_ms": 3000, "duty": 0.3, "pattern": "pause"},
-    "curious": {"step_ms": 800,  "duty": 0.6, "pattern": "asymmetric"},
-    "shy":     {"step_ms": 1500, "duty": 0.3, "pattern": "steady"},
-    "grumpy":  {"step_ms": 600,  "duty": 0.8, "pattern": "stomp"},
+    "sleepy":      {"step_ms": 3000, "duty": 0.3, "pattern": "pause"},
+    "comfortable": {"step_ms": 2000, "duty": 0.5, "pattern": "steady"},
+    "crying":      {"step_ms": 600,  "duty": 0.2, "pattern": "stomp"},
 }
 
 # ─── 触摸传感器 ───

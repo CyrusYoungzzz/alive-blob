@@ -12,47 +12,23 @@
 const CubeCharacter = (() => {
   // ─── 情绪参数 ───
   const EMOTIONS = {
-    calm: {
-      baseColor: [0.3, 0.5, 0.9], rimColor: [0.6, 0.8, 1.0],
-      noise: 0.2, eyeScale: 1.0, eyeSpace: 0.42, browL: 0, browA: 0,
-      mouthX: 0.4, mouthY: 0.02,
-      pulseFreq: 1.2, pulseAmp: 0.02, jitter: 0, tilt: 0
-    },
-    happy: {
-      baseColor: [0.9, 0.4, 0.7], rimColor: [1.0, 0.8, 0.9],
-      noise: 0.35, eyeScale: 0.45, eyeSpace: 0.45, browL: 0.15, browA: -0.2,
-      mouthX: 0.8, mouthY: 0.15,
-      pulseFreq: 3.5, pulseAmp: 0.06, jitter: 0, tilt: 0
-    },
-    excited: {
-      baseColor: [1.0, 0.5, 0.2], rimColor: [1.0, 0.9, 0.4],
-      noise: 0.6, eyeScale: 1.3, eyeSpace: 0.55, browL: 0.25, browA: 0.3,
-      mouthX: 0.5, mouthY: 0.5,
-      pulseFreq: 8.0, pulseAmp: 0.12, jitter: 0.02, tilt: 0
-    },
-    curious: {
-      baseColor: [0.2, 0.8, 0.6], rimColor: [0.7, 1.0, 0.9],
-      noise: 0.3, eyeScale: 1.1, eyeSpace: 0.42, browL: 0.1, browA: 0.2,
-      mouthX: 0.3, mouthY: 0.05,
-      pulseFreq: 2.0, pulseAmp: 0.03, jitter: 0, tilt: 0.2
-    },
     sleepy: {
       baseColor: [0.3, 0.3, 0.4], rimColor: [0.5, 0.5, 0.6],
       noise: 0.1, eyeScale: 0.15, eyeSpace: 0.4, browL: -0.1, browA: 0,
       mouthX: 0.3, mouthY: 0.02,
       pulseFreq: 0.6, pulseAmp: 0.015, jitter: 0, tilt: -0.1
     },
-    shy: {
-      baseColor: [1.0, 0.7, 0.75], rimColor: [1.0, 0.9, 0.9],
-      noise: 0.2, eyeScale: 0.8, eyeSpace: 0.35, browL: 0.05, browA: -0.1,
-      mouthX: 0.2, mouthY: 0.02,
-      pulseFreq: 4.0, pulseAmp: 0.02, jitter: 0.01, tilt: 0
+    comfortable: {
+      baseColor: [0.9, 0.6, 0.3], rimColor: [1.0, 0.85, 0.6],
+      noise: 0.2, eyeScale: 0.4, eyeSpace: 0.42, browL: 0.1, browA: -0.15,
+      mouthX: 0.7, mouthY: 0.12,
+      pulseFreq: 1.5, pulseAmp: 0.03, jitter: 0, tilt: 0
     },
-    grumpy: {
-      baseColor: [0.6, 0.1, 0.2], rimColor: [0.9, 0.2, 0.3],
-      noise: 0.8, eyeScale: 0.8, eyeSpace: 0.5, browL: 0, browA: 0.4,
-      mouthX: 0.6, mouthY: 0.05,
-      pulseFreq: 10.0, pulseAmp: 0.01, jitter: 0.05, tilt: 0
+    crying: {
+      baseColor: [0.3, 0.3, 0.8], rimColor: [0.5, 0.5, 1.0],
+      noise: 0.5, eyeScale: 1.2, eyeSpace: 0.5, browL: 0.15, browA: 0.3,
+      mouthX: 0.5, mouthY: 0.35,
+      pulseFreq: 6.0, pulseAmp: 0.08, jitter: 0.03, tilt: 0
     }
   };
 
@@ -61,6 +37,7 @@ const CubeCharacter = (() => {
     varying vec3 vNormal;
     varying vec3 vPosition;
     varying float vNoise;
+    varying vec2 vUv;
     uniform float uTime;
     uniform float uNoiseIntensity;
 
@@ -113,6 +90,7 @@ const CubeCharacter = (() => {
 
     void main(){
       vNormal=normalize(normalMatrix*normal);
+      vUv=uv;
       float noise=snoise(vec3(position.xy*0.45,uTime*0.4));
       vNoise=noise;
       vec3 newPos=position+normal*(noise*uNoiseIntensity);
@@ -125,18 +103,28 @@ const CubeCharacter = (() => {
     varying vec3 vNormal;
     varying vec3 vPosition;
     varying float vNoise;
+    varying vec2 vUv;
     uniform float uTime;
     uniform vec3 uBaseColor;
     uniform vec3 uRimColor;
+    uniform sampler2D uTexture;
+    uniform float uUseTexture;
 
     void main(){
       vec3 normal=normalize(vNormal);
       vec3 viewDir=normalize(vec3(0.0,0.0,1.0));
       float fresnel=pow(1.0-dot(normal,viewDir),2.5);
-      vec3 finalColor=mix(uBaseColor,uRimColor,fresnel);
       float spec=pow(max(dot(normal,viewDir),0.0),64.0);
-      finalColor+=spec*0.4;
-      gl_FragColor=vec4(finalColor,1.0);
+
+      // Solid color path (original)
+      vec3 solidColor=mix(uBaseColor,uRimColor,fresnel)+spec*0.4;
+
+      // Texture path: photo as base, Fresnel rim glow on edges
+      vec3 texColor=texture2D(uTexture,vUv).rgb;
+      vec3 rimGlow=uRimColor*fresnel*0.6;
+      vec3 texturedColor=texColor*(0.85+spec*0.3)+rimGlow;
+
+      gl_FragColor=vec4(mix(solidColor,texturedColor,uUseTexture),1.0);
     }
   `;
 
@@ -144,8 +132,9 @@ const CubeCharacter = (() => {
   let scene, camera, renderer, blob, material;
   let eyes = [], brows = [], mouth;
   let clock;
-  let targetEmotion = 'calm';
+  let targetEmotion = 'sleepy';
   let animId = null;
+  let targetUseTexture = 0.0;
   const LERP = 0.12;
 
   let state = {
@@ -175,7 +164,9 @@ const CubeCharacter = (() => {
         uTime: { value: 0 },
         uNoiseIntensity: { value: 0.2 },
         uBaseColor: { value: new THREE.Color(0.3, 0.5, 0.9) },
-        uRimColor: { value: new THREE.Color(0.6, 0.8, 1.0) }
+        uRimColor: { value: new THREE.Color(0.6, 0.8, 1.0) },
+        uTexture: { value: new THREE.Texture() },
+        uUseTexture: { value: 0.0 }
       }
     });
     blob = new THREE.Mesh(geometry, material);
@@ -228,7 +219,7 @@ const CubeCharacter = (() => {
   function animate() {
     animId = requestAnimationFrame(animate);
     const time = clock.getElapsedTime();
-    const cfg = EMOTIONS[targetEmotion] || EMOTIONS.calm;
+    const cfg = EMOTIONS[targetEmotion] || EMOTIONS.sleepy;
 
     // 插值所有参数
     state.noise = THREE.MathUtils.lerp(state.noise, cfg.noise, LERP);
@@ -245,6 +236,9 @@ const CubeCharacter = (() => {
     material.uniforms.uRimColor.value.lerp(new THREE.Color(...cfg.rimColor), 0.05);
     material.uniforms.uNoiseIntensity.value = state.noise;
     material.uniforms.uTime.value = time;
+    material.uniforms.uUseTexture.value = THREE.MathUtils.lerp(
+      material.uniforms.uUseTexture.value, targetUseTexture, LERP
+    );
 
     // 身体动画
     const pulse = 1.0 + Math.sin(time * cfg.pulseFreq) * cfg.pulseAmp;
@@ -288,10 +282,28 @@ const CubeCharacter = (() => {
     }
   }
 
+  function setTexture(url) {
+    new THREE.TextureLoader().load(url, (tex) => {
+      tex.encoding = THREE.sRGBEncoding;
+      material.uniforms.uTexture.value = tex;
+      targetUseTexture = 1.0;
+    });
+  }
+
+  function clearTexture() {
+    targetUseTexture = 0.0;
+  }
+
+  function showFace(visible) {
+    eyes.forEach(e => { e.p.visible = visible; });
+    brows.forEach(b => { b.visible = visible; });
+    if (mouth) mouth.visible = visible;
+  }
+
   function destroy() {
     if (animId) cancelAnimationFrame(animId);
     if (renderer) renderer.dispose();
   }
 
-  return { init, setEmotion, destroy };
+  return { init, setEmotion, setTexture, clearTexture, showFace, destroy };
 })();

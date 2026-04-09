@@ -10,7 +10,9 @@ from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, BackgroundTasks
 
-from server.aigc_service import MockAIGCService, EMOTIONS
+import os
+
+from server.aigc_service import MockAIGCService, JimengAIGCService, EMOTIONS
 
 router = APIRouter()
 
@@ -89,16 +91,19 @@ async def create_character(
         "name": name,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "status": "generating",
-        "videos": {},
+        "emotions": {},
     }
     _write_manifest(char_dir, manifest)
 
     async def _generate():
-        service = MockAIGCService()
+        if os.getenv("ARK_API_KEY") or os.getenv("VOLC_ACCESSKEY"):
+            service = JimengAIGCService()
+        else:
+            service = MockAIGCService()
         try:
             results = await service.generate_emotions(source_path, char_dir)
             manifest["status"] = "ready"
-            manifest["videos"] = {e: f"{e}.png" for e in results}
+            manifest["emotions"] = {e: f"{e}.png" for e in results}
             _write_manifest(char_dir, manifest)
         except Exception as exc:
             manifest["status"] = f"error: {exc}"
