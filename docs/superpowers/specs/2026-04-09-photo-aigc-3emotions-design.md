@@ -73,12 +73,14 @@ EMOTION_PROMPTS = {
 {
     "model": "doubao-seedream-4-0-250828",
     "prompt": "<emotion_prompt>",
-    "image": ["data:image/jpeg;base64,<base64_data>"],
+    "image": ["<image_input>"],
     "size": "2048x2048",
     "response_format": "url",
     "watermark": false
 }
 ```
+
+**注意：`image` 字段格式需实测确认。** 优先尝试 base64 data URI（`data:image/jpeg;base64,...`），如不支持则改为先将 source.jpg 通过 FastAPI 静态文件暴露为 URL。实现时两种方式都准备好，运行时自动选择。
 
 ### 2.5 错误处理
 
@@ -86,6 +88,7 @@ EMOTION_PROMPTS = {
 - 单个情绪生成失败 → 重试 1 次，仍失败则用 Mock 占位
 - 超时 → 120s timeout
 - 生成的 URL 24h 过期 → 必须立即下载保存
+- 并发调用注意即梦 API 速率限制（黑客松场景下调用量不大，暂不做限流）
 
 ### 2.6 图片后处理
 
@@ -104,48 +107,55 @@ EMOTION_PROMPTS = {
 - 保留 `MockAIGCService` 作为回退
 - 新增依赖：`httpx`（异步 HTTP 客户端）
 
-### 3.2 server/main.py
+### 3.2 server/routes.py
 
-- 根据 `ARK_API_KEY` 环境变量选择 Jimeng 或 Mock 服务
-- 情绪列表从 7 改为 3
+- 角色创建逻辑中将 `MockAIGCService()` 替换为根据 `ARK_API_KEY` 选择 Jimeng 或 Mock
+- 更新 `EMOTIONS` 导入（从 7 改为 3）
+- manifest 中将 `"videos"` key 改为 `"emotions"` key（与新结构一致）
 
-### 3.3 blob-engine/config.py
+### 3.3 server/main.py
+
+- 如有全局服务初始化，适配新的服务选择逻辑
+
+### 3.4 blob-engine/config.py
 
 - `EMOTIONS` 列表：`["sleepy", "comfortable", "crying"]`
 - `DEFAULT_EMOTION`: `"sleepy"`
-- 步态参数适配 3 情绪
+- `GAIT_PARAMS` 字典：从 7 组参数缩减为 3 组，对应新情绪
 
-### 3.4 blob-engine/engine.py
+### 3.5 blob-engine/engine.py
 
-- 默认情绪 → `sleepy`
+- 默认情绪 → `sleepy`（原为 `"calm"`）
 - 移除多余的 7 情绪处理逻辑
 - state_sync 消息中的情绪值适配
 
-### 3.5 blob-engine/gait_controller.py
+### 3.6 blob-engine/gait_controller.py
 
-- 步态映射：
+- 步态映射适配 3 情绪（实际参数定义在 config.py 的 `GAIT_PARAMS` 中）：
   - `sleepy` → 慢步（低频率，低占空比）
   - `comfortable` → 稳步（中等节奏）
   - `crying` → 停步或颤抖（快速微动）
 
-### 3.6 eye-app/cube.js
+### 3.7 eye-app/cube.js
 
 - 3D Cube 情绪参数从 7 组缩减为 3 组
 - `sleepy`：深蓝色，低噪声，小眼睛，平嘴
 - `comfortable`：暖橙色，柔和噪声，眯眼，微笑
 - `crying`：蓝紫色，高噪声，大眼睛（泪），下弯嘴
+- **修复 fallback**：`EMOTIONS[targetEmotion] || EMOTIONS.calm` → 改为 `EMOTIONS.sleepy`
 
-### 3.7 eye-app/player.js
+### 3.8 eye-app/player.js
 
 - 情绪处理逻辑适配 3 种
 - 自定义角色显示 AIGC 生成的对应情绪 PNG
+- **启动默认情绪**：`setEmotion('calm')` → `setEmotion('sleepy')`
 
-### 3.8 server/static/index.html
+### 3.9 server/static/index.html
 
 - 控制面板情绪按钮从 7 个改为 3 个大按钮
 - 按钮标签：困 / 舒服 / 哭
 
-### 3.9 server/static/style.css
+### 3.10 server/static/style.css
 
 - 按钮样式适配 3 个情绪
 
@@ -162,7 +172,7 @@ characters/{name}/
 └── crying.png          # 480×480 卡通哭泣图
 ```
 
-**manifest.json**:
+**manifest.json**（注意：现有代码使用 `"videos"` key，统一改为 `"emotions"`）:
 ```json
 {
   "name": "角色名",
