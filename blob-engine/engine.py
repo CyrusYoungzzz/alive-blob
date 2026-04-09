@@ -28,6 +28,9 @@ except ImportError:
     _HAS_GAIT = False
     log.warning("GaitController not available (missing deps?) — gait disabled")
 
+from interaction_store import InteractionStore
+from touch_sensor import create_touch_sensor
+
 
 BUILTIN_CHARS = {
     "cube": {"type": "3d", "name": "Cube", "avatar": None},
@@ -50,6 +53,8 @@ class BlobEngine:
         self._running = False
         self._intensity = 0.7
         self.gait = GaitController() if (_HAS_GAIT and enable_gait) else None
+        self._store = InteractionStore(Path("data/interactions.json"))
+        self._touch = create_touch_sensor(self._on_touch_hit)
 
     async def start(self):
         self._running = True
@@ -63,13 +68,22 @@ class BlobEngine:
         if self.gait:
             await self.gait.start()
 
+        self._loop = asyncio.get_running_loop()
+        self._touch.start()
+
         async with serve(self._handler, "0.0.0.0", self.port):
             log.info(f"Engine WebSocket server on port {self.port}")
             sync_task = asyncio.create_task(self._state_sync_loop())
+            flush_task = None
+            flush_task = asyncio.create_task(self._flush_loop())
             try:
                 await asyncio.Future()
             finally:
                 sync_task.cancel()
+                if flush_task:
+                    flush_task.cancel()
+                self._touch.stop()
+                self._store.flush()
                 if self.gait:
                     await self.gait.stop()
 
@@ -97,6 +111,14 @@ class BlobEngine:
     async def _handle_mobile(self, ws):
         self.mobile_clients.add(ws)
         log.info(f"Mobile connected ({len(self.mobile_clients)} total)")
+        # Send interaction snapshot on connect
+        init_msg = json.dumps({
+            "type": "interaction_init",
+            "rankings": self._store.get_rankings(),
+            "total": self._store.get_total(),
+            "last_hit_ts": self._store.last_hit_ts,
+        })
+        await ws.send(init_msg)
         try:
             async for msg in ws:
                 await self._handle_mobile_message(json.loads(msg))
@@ -196,6 +218,40 @@ class BlobEngine:
                     await ws.send(state)
                 except Exception:
                     self.mobile_clients.discard(ws)
+
+    def _on_touch_hit(self, label: str, level: int):
+        """Called from touch sensor thread when a hit is detected."""
+        char = self.current_character
+        if not char:
+            return
+        count = self._store.increment(char)
+        log.info("Interaction: %s on '%s' → %d total", label, char, count)
+        # Schedule async broadcast from sync thread (use captured loop reference)
+        self._loop.call_soon_threadsafe(
+            asyncio.ensure_future, self._broadcast_interaction(char, count)
+        )
+
+    async def _broadcast_interaction(self, character: str, count: int):
+        """Push interaction_update to all mobile clients."""
+        msg = json.dumps({
+            "type": "interaction_update",
+            "character": character,
+            "count": count,
+            "rankings": self._store.get_rankings(),
+            "total": self._store.get_total(),
+            "last_hit_ts": self._store.last_hit_ts,
+        })
+        for ws in list(self.mobile_clients):
+            try:
+                await ws.send(msg)
+            except Exception:
+                self.mobile_clients.discard(ws)
+
+    async def _flush_loop(self):
+        """Periodically flush interaction counts to disk (1s debounce)."""
+        while True:
+            await asyncio.sleep(1.0)
+            self._store.flush()
 
 
 if __name__ == "__main__":
